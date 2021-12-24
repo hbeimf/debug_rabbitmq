@@ -24,15 +24,16 @@ rel_cluster1: release_c1_node1 release_c1_node2
 
 release_c1_node1: 
 	./rebar3 compile
-	./rebar3 release
-	./rebar3 tar
-	mkdir ./$(PROJECT)_v$(VERSION)_cluster1_node1
-	tar zxvf ./_build/default/rel/$(NODENAME)/$(NODENAME)-$(VERSION).tar.gz -C ./$(PROJECT)_v$(VERSION)_cluster1_node1/
-	cp ./config.ini ./$(PROJECT)_v$(VERSION)_cluster1_node1/config.ini
-	cp ./gw_api.config ./$(PROJECT)_v$(VERSION)_cluster1_node1/gw_api.config
-	# cp ./config/vm.cluster1.node1.args ./$(PROJECT)_v$(VERSION)_cluster1_node1/releases/$(VERSION)/vm.args
-	tar czvf  ./bin/$(PROJECT)_v$(VERSION)_cluster1_node1.tar.gz ./$(PROJECT)_v$(VERSION)_cluster1_node1
-	rm -rf ./$(PROJECT)_v$(VERSION)_cluster1_node1
+
+# ./rebar3 release
+# ./rebar3 tar
+# mkdir ./$(PROJECT)_v$(VERSION)_cluster1_node1
+# tar zxvf ./_build/default/rel/$(NODENAME)/$(NODENAME)-$(VERSION).tar.gz -C ./$(PROJECT)_v$(VERSION)_cluster1_node1/
+# cp ./config.ini ./$(PROJECT)_v$(VERSION)_cluster1_node1/config.ini
+# cp ./gw_api.config ./$(PROJECT)_v$(VERSION)_cluster1_node1/gw_api.config
+# # cp ./config/vm.cluster1.node1.args ./$(PROJECT)_v$(VERSION)_cluster1_node1/releases/$(VERSION)/vm.args
+# tar czvf  ./bin/$(PROJECT)_v$(VERSION)_cluster1_node1.tar.gz ./$(PROJECT)_v$(VERSION)_cluster1_node1
+# rm -rf ./$(PROJECT)_v$(VERSION)_cluster1_node1
 
 release_c1_node2: 
 	./rebar3 compile

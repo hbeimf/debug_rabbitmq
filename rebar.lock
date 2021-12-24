@@ -1,1 +1,6 @@
-[].
+{"1.1.0",
+[{<<"stdout_formatter">>,{pkg,<<"stdout_formatter">>,<<"0.2.4">>},0}]}.
+[
+{pkg_hash,[
+ {<<"stdout_formatter">>, <<"D9394AB3F5ADCDA97A4B8B1C0B798DCB286B07913C4020EA7F78C88723FB145E">>}]}
+].

@@ -6,6 +6,9 @@
   {applications,
    [kernel,
     stdlib
+    , rabbit_common 
+    , glib
+    , sys_log
    ]},
   {env,[]},
   {modules, []},
