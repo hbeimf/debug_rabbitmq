@@ -1,13 +1,14 @@
-{application, debug_rabbitmq,
+{application, rabbit,
  [{description, "An OTP application"},
   {vsn, "0.1.0"},
   {registered, []},
-  {mod, {debug_rabbitmq_app, []}},
+  {mod, {rabbit_app, []}},
   {applications,
    [kernel,
     stdlib
-    , rabbit_common
-    , rabbit
+	, rabbit_common
+    , glib
+    , sys_log
    ]},
   {env,[]},
   {modules, []},

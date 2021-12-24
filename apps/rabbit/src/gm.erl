@@ -6,6 +6,7 @@
 %%
 
 -module(gm).
+-include_lib("glib/include/debug.hrl").
 
 %% Guaranteed Multicast
 %% ====================
