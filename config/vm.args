@@ -1,0 +1,6 @@
+-sname debug_rabbitmq
+
+-setcookie debug_rabbitmq_cookie
+
++K true
++A30
