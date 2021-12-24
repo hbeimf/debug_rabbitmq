@@ -1,8 +1,8 @@
-{application, rabbit,
+{application, rabbit_common,
  [{description, "An OTP application"},
   {vsn, "0.1.0"},
   {registered, []},
-  {mod, {rabbit_app, []}},
+  {mod, {rabbit_common_app, []}},
   {applications,
    [kernel,
     stdlib

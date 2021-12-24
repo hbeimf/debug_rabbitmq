@@ -1,4 +1,9 @@
-# RabbitMQ Common
+rabbit_common
+=====
 
-This library is shared between [RabbitMQ server](https://github.com/rabbitmq/rabbitmq-server), [RabbitMQ Erlang client](https://github.com/rabbitmq/rabbitmq-erlang-client)
-and other RabbitMQ ecosystem projects.
+An OTP application
+
+Build
+-----
+
+    $ rebar3 compile
