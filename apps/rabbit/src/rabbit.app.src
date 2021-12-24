@@ -11,6 +11,8 @@
     amqp_client,
     %%table
     sys_log
+    , rabbit_common
+    %, rabbit_common
    ]},
   {env,[]},
   {modules, []},

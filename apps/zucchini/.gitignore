@@ -1,0 +1,4 @@
+.DS_Store
+ebin/
+src/zucchini_lexer.erl
+src/zucchini_parser.erl

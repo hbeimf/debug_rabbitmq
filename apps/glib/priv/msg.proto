@@ -1,8 +1,0 @@
-syntax="proto3";
-
-package PB;
-
-message Msg{
-    uint32 action = 1;
-    bytes  msgBody = 2;
-}

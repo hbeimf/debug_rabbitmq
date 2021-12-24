@@ -9,6 +9,7 @@
     inets,
     esnowflake
     %, recon
+    ,sys_log
    ]},
   {env,[]},
   {modules, []},

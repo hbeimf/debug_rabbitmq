@@ -20,6 +20,8 @@
 
 -include_lib("rabbit_common/include/logging.hrl").
 
+% -include_lib("rabbit/include/debug_define.hrl").
+
 -compile({no_auto_import, [error/2, error/3]}).
 
 %%----------------------------------------------------------------------------
