@@ -1,4 +1,0 @@
--define(TYPE_ACCOUNT_LOG_1001, 1001). % account_log
--define(TYPE_GAME_RECORD_LOG_1002, 1002). % game_record_log
--define(TYPE_CHANNEL_CREDITS_LOG_1003, 1003). % channel_credits_log
--define(TYPE_MODIFY_ACCOUNT_INTERFACE_1004, 1004). % 

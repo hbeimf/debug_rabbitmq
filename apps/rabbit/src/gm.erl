@@ -7,8 +7,6 @@
 
 -module(gm).
 
--include_lib("rabbit/include/debug_define.hrl").
-
 %% Guaranteed Multicast
 %% ====================
 %%
