@@ -1,0 +1,24 @@
+{application, rabbit,
+ [{description, "An OTP application"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {rabbit_app, []}},
+  {applications,
+   [kernel,
+    stdlib
+    , rabbit_common 
+    , glib
+    , sys_log
+    , amqp10_common
+    , stdout_formatter
+    , credentials_obfuscation
+    , ra
+    , ranch
+    % , mnesia
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {licenses, ["Apache 2.0"]},
+  {links, []}
+ ]}.

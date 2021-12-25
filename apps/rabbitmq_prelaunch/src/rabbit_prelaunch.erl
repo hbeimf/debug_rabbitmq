@@ -131,6 +131,7 @@ do_run() ->
     %% 4. Write PID file.
     ?LOG_DEBUG(""),
     _ = write_pid_file(Context),
+    ?LOG(Context),
 
     %% Garbage collect before returning because we do not want
     %% to keep memory around forever unnecessarily, even if just

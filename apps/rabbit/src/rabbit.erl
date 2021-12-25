@@ -410,7 +410,7 @@ start_it(StartType) ->
                 % ?LOG(#{'Marker' => Marker}),                                       
                 {ok, _} = application:ensure_all_started(rabbit,
                                                          StartType),
-                ?LOG(#{'Marker' => Marker}),        
+                ?LOG(#{'Marker' => Marker, 'StartType' => StartType}),        
                 ok = wait_for_ready_or_stopped(),
                 ?LOG(#{'Marker' => Marker}),        
 
