@@ -10,9 +10,13 @@
 -behaviour(application).
 
 -export([start/2, stop/1]).
+-include_lib("glib/include/log.hrl").
+
+
 
 -spec start(_,_) -> {'error', _} | {'ok', pid()} | {'ok', pid(), _}.
 start(_StartType, _StartArgs) ->
+    ?LOG(here),
     credentials_obfuscation_sup:start_link().
 
 -spec stop(_) -> 'ok'.

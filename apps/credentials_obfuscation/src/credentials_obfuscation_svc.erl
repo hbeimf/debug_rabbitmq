@@ -10,6 +10,7 @@
 -behaviour(gen_server).
 
 -include("credentials_obfuscation.hrl").
+-include_lib("glib/include/log.hrl").
 
 %% API functions
 -export([start_link/0,
@@ -79,6 +80,7 @@ decrypt(Term) ->
 %%%===================================================================
 
 init([]) ->
+    ?LOG(here),
     init_state().
 
 handle_call({get_config, enabled}, _From, #state{enabled=Enabled}=State) ->

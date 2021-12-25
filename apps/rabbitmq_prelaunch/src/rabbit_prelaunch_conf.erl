@@ -21,9 +21,12 @@ setup(Context) ->
        "\n== Configuration ==",
        #{domain => ?RMQLOG_DOMAIN_PRELAUNCH}),
 
+    % ?LOG(#{domain => ?RMQLOG_DOMAIN_PRELAUNCH}),  %% #{domain => [rabbitmq,prelaunch]}
+
     %% TODO: Check if directories/files are inside Mnesia dir.
 
     ok = set_default_config(),
+    % ?LOG(#{domain => ?RMQLOG_DOMAIN_PRELAUNCH}),
 
     AdditionalConfigFiles = find_additional_config_files(Context),
     AdvancedConfigFile = find_actual_advanced_config_file(Context),
@@ -70,10 +73,14 @@ setup(Context) ->
                     #{config_files => [],
                       config_advanced_file => undefined}
             end,
+
+    ?LOG(here),
+    % 此处冒似有点问题,　
     ok = set_credentials_obfuscation_secret(),
     ?LOG_DEBUG(
       "Saving config state to application env: ~p", [State],
       #{domain => ?RMQLOG_DOMAIN_PRELAUNCH}),
+    ?LOG(he),
     store_config_state(State).
 
 store_config_state(ConfigState) ->

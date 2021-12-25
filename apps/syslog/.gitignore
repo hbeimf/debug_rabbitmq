@@ -1,0 +1,17 @@
+*.beam
+*.dat
+*.o
+*.plt
+*.png
+*.svg
+.eunit
+.rebar
+_build
+benchmark/lager
+benchmark/log
+benchmark/log4erl
+benchmark/sasl_syslog
+benchmark/syslog
+deps
+doc
+ebin

@@ -10,7 +10,8 @@
 -export([start/2, stop/1]).
 
 start(_StartType, _StartArgs) ->
-    rabbit:start(),
+    % start_app(),
+    % rabbit:start(),
     % rabbit:boot(),
     
     debug_rabbitmq_sup:start_link().
@@ -19,3 +20,7 @@ stop(_State) ->
     ok.
 
 %% internal functions
+
+% start_app() ->
+%     application:start(credentials_obfuscation),
+%     ok.

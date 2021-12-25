@@ -97,20 +97,21 @@ do_run() ->
     %% Load rabbitmq-env.conf, redo logging setup and continue.
     Context1 = rabbit_env:get_context_after_logging_init(Context0),
     ?assertMatch(#{}, Context1),
-    % ?LOG(#{'Context1' => Context1}),
+    ?LOG(#{'Context1' => Context1}),
 
     ok = rabbit_prelaunch_early_logging:setup_early_logging(Context1),
     rabbit_env:log_process_env(),
 
     %% Complete context now that we have the final environment loaded.
     Context2 = rabbit_env:get_context_after_reloading_env(Context1),
-    % ?LOG(#{'Context2' => Context2}),
+    ?LOG(#{'Context2' => Context2}),
     %% 这个上面初如化　nodename
 
     ?assertMatch(#{}, Context2),
     store_context(Context2),
     rabbit_env:log_context(Context2),
     ok = setup_shutdown_func(),
+    ?LOG(here),
 
     Context = Context2#{initial_pass => IsInitialPass},
 
@@ -119,14 +120,15 @@ do_run() ->
 
     %% 1. Erlang/OTP compatibility check.
     ok = rabbit_prelaunch_erlang_compat:check(Context),
+    ?LOG(Context),
 
     %% 2. Configuration check + loading.
     ok = rabbit_prelaunch_conf:setup(Context),
-    % ?LOG({here8, Context}),
+    ?LOG({here8, Context}),
     %% 3. Erlang distribution check + start.
     ok = rabbit_prelaunch_dist:setup(Context),
     % 这里检查出两个不同的节点名报导制启动异常退出
-    % ?LOG(here8),
+    ?LOG(here8),
 
     %% 4. Write PID file.
     ?LOG_DEBUG(""),

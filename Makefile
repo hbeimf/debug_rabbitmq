@@ -19,6 +19,9 @@ run:
 init:
 	sudo mkdir -p /var/lib/rabbitmq/
 	sudo chmod 777 /var/lib/rabbitmq/ -R
+	sudo mkdir /var/log/rabbitmq
+	sudo chmod 777 /var/log/rabbitmq -R
+
 
 cc:
 	rm -rf _build/default/lib

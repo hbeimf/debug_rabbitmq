@@ -11,6 +11,10 @@
 		,stdout_formatter
 		,recon,observer_cli,osiris,amqp10_common
 		,syslog,systemd,seshat
+		%%%%%%%
+		, glib
+		, sys_log
+		, credentials_obfuscation
 	]},
 	{mod, {rabbit, []}},
 	{env, [
