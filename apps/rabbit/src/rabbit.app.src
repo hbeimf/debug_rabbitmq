@@ -10,6 +10,7 @@
     , glib
     , sys_log
     , amqp10_common
+    , stdout_formatter
    ]},
   {env,[]},
   {modules, []},
