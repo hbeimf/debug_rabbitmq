@@ -20,6 +20,9 @@ init:
 	sudo mkdir -p /var/lib/rabbitmq/
 	sudo chmod 777 /var/lib/rabbitmq/ -R
 
+cc:
+	rm -rf _build/default/lib
+
 # run:
 # 	./rebar3 shell --name debug_rabbitmq@127.0.0.1 --setcookie debug_rabbitmq_cookie
 
@@ -190,6 +193,10 @@ up:
 
 # stop:
 # 	ps -efww|grep xgn.node|grep -v grep|cut -c 9-15|xargs kill -9
+
+add:
+	git add .
+	git commit -m 'pu'
 
 push:
 	git add .

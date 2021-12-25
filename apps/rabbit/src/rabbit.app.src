@@ -12,6 +12,8 @@
     , amqp10_common
     , stdout_formatter
     , credentials_obfuscation
+    , ra
+    , ranch
    ]},
   {env,[]},
   {modules, []},
