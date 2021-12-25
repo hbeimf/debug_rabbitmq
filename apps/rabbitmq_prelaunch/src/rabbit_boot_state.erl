@@ -31,6 +31,8 @@
 
 -spec get() -> boot_state().
 get() ->
+    % ?LOG({here, ?PT_KEY_BOOT_STATE}),
+    % {here,{rabbit_boot_state,boot_state}}
     persistent_term:get(?PT_KEY_BOOT_STATE, stopped).
 
 -spec set(boot_state()) -> ok.
@@ -54,6 +56,7 @@ wait_for(BootState, infinity) ->
     end;
 wait_for(BootState, Timeout)
   when is_integer(Timeout) andalso Timeout >= 0 ->
+    % ?LOG({BootState, Timeout}),
     case has_reached(BootState) of
         true  -> ok;
         false -> Wait = 200,

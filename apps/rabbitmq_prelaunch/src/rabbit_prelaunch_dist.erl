@@ -8,7 +8,7 @@
 -export([setup/1]).
 
 setup(#{nodename := Node, nodename_type := NameType} = Context) ->
-    ?LOG({Node, NameType}),
+    % ?LOG({Node, NameType}),
     ?LOG_DEBUG(
        "~n== Erlang distribution ==", [],
        #{domain => ?RMQLOG_DOMAIN_PRELAUNCH}),

@@ -20,7 +20,7 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-    ?LOG(here),
+    % ?LOG(here),
     SystemdSpec = #{id => systemd,
                     start => {rabbit_boot_state_systemd, start_link, []},
                     restart => transient},

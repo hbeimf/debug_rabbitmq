@@ -11,6 +11,8 @@
 
 start(_StartType, _StartArgs) ->
     rabbit:start(),
+    % rabbit:boot(),
+    
     debug_rabbitmq_sup:start_link().
 
 stop(_State) ->

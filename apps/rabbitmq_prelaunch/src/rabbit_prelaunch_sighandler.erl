@@ -53,7 +53,7 @@ setup() ->
     end.
 
 init(_Args) ->
-    ?LOG(here3),
+    % ?LOG(here3),
     maps:fold(
       fun
           (Signal, _, Ret) when ?SIGNAL_HANDLED_BY_ERLANG(Signal) -> Ret;

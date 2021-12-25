@@ -172,7 +172,7 @@ get_context_after_reloading_env(Context) ->
     run_context_steps(Context, Steps).
 
 context_base(TakeFromRemoteNode) ->
-    ?LOG(TakeFromRemoteNode),
+    % ?LOG(TakeFromRemoteNode),
     Context = #{},
     case TakeFromRemoteNode of
         false ->

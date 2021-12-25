@@ -27,7 +27,7 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
-    ?LOG(here1),
+    % ?LOG(here1),
     {ok, _} = application:ensure_all_started(systemd),
     {ok, #{}}.
 

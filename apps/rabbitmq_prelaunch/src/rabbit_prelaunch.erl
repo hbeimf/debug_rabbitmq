@@ -54,14 +54,14 @@ do_run() ->
     clear_stop_reason(),
     rabbit_boot_state:set(booting),
 
-    ?LOG(here8),
+    % ?LOG(here8),
 
     %% Configure dbg if requested.
     rabbit_prelaunch_early_logging:enable_quick_dbg(rabbit_env:dbg_config()),
 
     %% Setup signal handler.
     ok = rabbit_prelaunch_sighandler:setup(),
-    ?LOG(here8),
+    % ?LOG(here8),
     %% We assert Mnesia is stopped before we run the prelaunch
     %% phases.
     %%
