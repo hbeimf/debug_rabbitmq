@@ -19,6 +19,7 @@
 
 log_error(Error) ->
     Message = format_error(Error),
+    ?LOG({Error, Message}),
     log_message(Message).
 
 format_error({error, {duplicate_node_name, NodeName, NodeHost}}) ->
@@ -43,6 +44,7 @@ format_error({error, {dist_port_already_used, Port, Name, Host}}) ->
       "another node: ~s@~s", [Port, Name, Host]);
 format_error({error, {erlang_dist_running_with_unexpected_nodename,
                       Unexpected, Node}}) ->
+    ?LOG({here5, Unexpected, Node}),
     rabbit_misc:format(
       "Erlang distribution running with another node name (~s) "
       "than the configured one (~s)",

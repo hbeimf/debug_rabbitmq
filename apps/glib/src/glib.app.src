@@ -10,7 +10,7 @@
     esnowflake
     %, recon
     ,sys_log
-    , rabbit_common
+    % , rabbit_common
    ]},
   {env,[]},
   {modules, []},

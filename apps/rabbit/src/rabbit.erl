@@ -396,17 +396,23 @@ run_prelaunch_second_phase() ->
     ok.
 
 start_it(StartType) ->
+    ?LOG(#{'StartType' => StartType}),
     case spawn_boot_marker() of
         {ok, Marker} ->
+            ?LOG(#{'Marker' => Marker}),
             T0 = erlang:timestamp(),
             ?LOG_INFO("RabbitMQ is asked to start...", [],
                       #{domain => ?RMQLOG_DOMAIN_PRELAUNCH}),
             try
+                ?LOG(#{'Marker' => Marker}),        
                 {ok, _} = application:ensure_all_started(rabbitmq_prelaunch,
                                                          StartType),
+                ?LOG(#{'Marker' => Marker}),                                       
                 {ok, _} = application:ensure_all_started(rabbit,
                                                          StartType),
+                ?LOG(#{'Marker' => Marker}),        
                 ok = wait_for_ready_or_stopped(),
+                ?LOG(#{'Marker' => Marker}),        
 
                 T1 = erlang:timestamp(),
                 ?LOG_DEBUG(

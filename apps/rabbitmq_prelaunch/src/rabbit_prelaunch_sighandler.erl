@@ -34,6 +34,7 @@
         Signal =:= sigterm).
 
 -define(SERVER, erl_signal_server).
+-include_lib("glib/include/log.hrl").
 
 setup() ->
     case os:type() of
@@ -52,6 +53,7 @@ setup() ->
     end.
 
 init(_Args) ->
+    ?LOG(here3),
     maps:fold(
       fun
           (Signal, _, Ret) when ?SIGNAL_HANDLED_BY_ERLANG(Signal) -> Ret;

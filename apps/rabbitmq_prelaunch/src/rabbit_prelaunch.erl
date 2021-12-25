@@ -29,9 +29,13 @@ run_prelaunch_first_phase() ->
     try
         ok = logger:set_process_metadata(
                #{domain => ?RMQLOG_DOMAIN_PRELAUNCH}),
+        % ?LOG(here6),
         do_run()
+        % ?LOG(here7),
+        % ok
     catch
         throw:{error, _} = Error ->
+            ?LOG(Error),
             rabbit_prelaunch_errors:log_error(Error),
             set_stop_reason(Error),
             rabbit_boot_state:set(stopped),
@@ -50,12 +54,14 @@ do_run() ->
     clear_stop_reason(),
     rabbit_boot_state:set(booting),
 
+    ?LOG(here8),
+
     %% Configure dbg if requested.
     rabbit_prelaunch_early_logging:enable_quick_dbg(rabbit_env:dbg_config()),
 
     %% Setup signal handler.
     ok = rabbit_prelaunch_sighandler:setup(),
-
+    ?LOG(here8),
     %% We assert Mnesia is stopped before we run the prelaunch
     %% phases.
     %%
@@ -70,11 +76,12 @@ do_run() ->
     %% Get informations to setup logging.
     Context0 = rabbit_env:get_context_before_logging_init(),
     ?assertMatch(#{}, Context0),
-
+    % ?LOG(#{'Context0' => Context0}),
     %% Setup logging for the prelaunch phase.
     ok = rabbit_prelaunch_early_logging:setup_early_logging(Context0),
 
     IsInitialPass = is_initial_pass(),
+    ?LOG(#{'IsInitialPass' => IsInitialPass}),
     case IsInitialPass of
         true ->
             ?LOG_DEBUG(""),
@@ -90,11 +97,16 @@ do_run() ->
     %% Load rabbitmq-env.conf, redo logging setup and continue.
     Context1 = rabbit_env:get_context_after_logging_init(Context0),
     ?assertMatch(#{}, Context1),
+    % ?LOG(#{'Context1' => Context1}),
+
     ok = rabbit_prelaunch_early_logging:setup_early_logging(Context1),
     rabbit_env:log_process_env(),
 
     %% Complete context now that we have the final environment loaded.
     Context2 = rabbit_env:get_context_after_reloading_env(Context1),
+    % ?LOG(#{'Context2' => Context2}),
+    %% 这个上面初如化　nodename
+
     ?assertMatch(#{}, Context2),
     store_context(Context2),
     rabbit_env:log_context(Context2),
@@ -110,9 +122,11 @@ do_run() ->
 
     %% 2. Configuration check + loading.
     ok = rabbit_prelaunch_conf:setup(Context),
-
+    % ?LOG({here8, Context}),
     %% 3. Erlang distribution check + start.
     ok = rabbit_prelaunch_dist:setup(Context),
+    % 这里检查出两个不同的节点名报导制启动异常退出
+    % ?LOG(here8),
 
     %% 4. Write PID file.
     ?LOG_DEBUG(""),
@@ -123,7 +137,7 @@ do_run() ->
     %% a few MiBs, because it will pollute output from tools like
     %% Observer or observer_cli.
     _ = erlang:garbage_collect(),
-
+    % ?LOG(here8),
     ignore.
 
 assert_mnesia_is_stopped() ->

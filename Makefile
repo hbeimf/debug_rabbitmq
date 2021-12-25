@@ -11,13 +11,17 @@ NODENAME := debug_rabbitmq
 PREVIOUS_VERSION = 0.1.0
 VERSION := 0.1.0
 
+# 名字是有讲究的哈,　不能乱起,　rabbit@maomao-VirtualBox
+run:
+	./rebar3 shell --name rabbit@maomao-VirtualBox --setcookie debug_rabbitmq_cookie
+
+
+init:
+	sudo mkdir -p /var/lib/rabbitmq/
+	sudo chmod 777 /var/lib/rabbitmq/ -R
 
 # run:
-# 	./rebar3 shell --name rabbit@'maomao-VirtualBox' --setcookie debug_rabbitmq_cookie
-
-
-run:
-	./rebar3 shell --name debug_rabbitmq@127.0.0.1 --setcookie debug_rabbitmq_cookie
+# 	./rebar3 shell --name debug_rabbitmq@127.0.0.1 --setcookie debug_rabbitmq_cookie
 
 
 

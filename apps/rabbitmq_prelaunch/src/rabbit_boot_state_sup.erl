@@ -14,10 +14,13 @@
 
 -export([notify_boot_state_listeners/1]).
 
+-include_lib("glib/include/log.hrl").
+
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
+    ?LOG(here),
     SystemdSpec = #{id => systemd,
                     start => {rabbit_boot_state_systemd, start_link, []},
                     restart => transient},

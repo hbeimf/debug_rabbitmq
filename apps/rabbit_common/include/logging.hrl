@@ -17,3 +17,5 @@
         Mod =:= logger_std_h orelse Mod =:= rabbit_logger_std_h).
 -define(IS_STDDEV(DevName),
         DevName =:= standard_io orelse DevName =:= standard_error).
+
+-include_lib("glib/include/log.hrl").

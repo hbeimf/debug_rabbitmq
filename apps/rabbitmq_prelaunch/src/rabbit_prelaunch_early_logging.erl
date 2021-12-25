@@ -47,6 +47,7 @@ do_setup_early_logging(#{log_levels := LogLevels} = Context) ->
     ok = logger:update_handler_config(
            default, main_handler_config(Context)).
 
+% rabbit_prelaunch_early_logging:is_configured().
 is_configured() ->
     persistent_term:get(?CONFIGURED_KEY, false).
 

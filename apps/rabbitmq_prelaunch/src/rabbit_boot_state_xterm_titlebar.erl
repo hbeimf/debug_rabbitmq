@@ -34,6 +34,7 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
+    ?LOG(here2),
     %% We assume that if the OS is Unix, then the terminal emulator must be
     %% compatible with Xterm escape sequences.
     RunsOnUnix = case os:type() of
