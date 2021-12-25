@@ -11,6 +11,7 @@
     , sys_log
     , amqp10_common
     , stdout_formatter
+    , credentials_obfuscation
    ]},
   {env,[]},
   {modules, []},

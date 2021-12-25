@@ -12,8 +12,14 @@ PREVIOUS_VERSION = 0.1.0
 VERSION := 0.1.0
 
 
+# run:
+# 	./rebar3 shell --name rabbit@'maomao-VirtualBox' --setcookie debug_rabbitmq_cookie
+
+
 run:
 	./rebar3 shell --name debug_rabbitmq@127.0.0.1 --setcookie debug_rabbitmq_cookie
+
+
 
 rel: release_c1_node1
 
