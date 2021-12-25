@@ -21,6 +21,8 @@ init:
 	sudo chmod 777 /var/lib/rabbitmq/ -R
 	sudo mkdir /var/log/rabbitmq
 	sudo chmod 777 /var/log/rabbitmq -R
+	sudo mkdir /etc/rabbitmq
+	sudo chmod 777 /etc/rabbitmq -R
 
 
 cc:
