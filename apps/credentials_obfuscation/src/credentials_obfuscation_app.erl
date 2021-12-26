@@ -16,7 +16,7 @@
 
 -spec start(_,_) -> {'error', _} | {'ok', pid()} | {'ok', pid(), _}.
 start(_StartType, _StartArgs) ->
-    ?LOG(here),
+    % ?LOG(here),
     credentials_obfuscation_sup:start_link().
 
 -spec stop(_) -> 'ok'.

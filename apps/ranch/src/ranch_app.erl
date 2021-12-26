@@ -19,8 +19,11 @@
 -export([stop/1]).
 -export([profile_output/0]).
 
+-include_lib("glib/include/log.hrl").
+
 -spec start(application:start_type(), term()) -> {ok, pid()} | {error, term()}.
 start(_, _) ->
+	?LOG(here),
 	_ = consider_profiling(),
 	ranch_server = ets:new(ranch_server, [
 		ordered_set, public, named_table]),

@@ -48,6 +48,7 @@
 	logger = undefined :: module()
 }).
 
+-include_lib("glib/include/log.hrl").
 %% API.
 
 -spec start_link(ranch:ref(), pos_integer(), module(), any(), module(), module()) -> {ok, pid()}.
@@ -115,6 +116,7 @@ init(Parent, Ref, Id, Transport, TransOpts, Protocol, Logger) ->
 	ProtoOpts = ranch_server:get_protocol_options(Ref),
 	StatsCounters = ranch_server:get_stats_counters(Ref),
 	ok = proc_lib:init_ack(Parent, {ok, self()}),
+	?LOG({Protocol, Transport}),
 	loop(#state{parent=Parent, ref=Ref, id=Id, conn_type=ConnType,
 		shutdown=Shutdown, transport=Transport, protocol=Protocol,
 		opts=ProtoOpts, stats_counters_ref=StatsCounters,

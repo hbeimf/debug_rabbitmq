@@ -44,6 +44,7 @@
 %%----------------------------------------------------------------------------
 %% Start
 %%----------------------------------------------------------------------------
+-include_lib("glib/include/log.hrl").
 
 -spec start_link() -> rabbit_types:ok_pid_or_error().
 
@@ -147,6 +148,7 @@ read_cluster_status() ->
 
 update_cluster_status() ->
     {ok, Status} = rabbit_mnesia:cluster_status_from_mnesia(),
+    % ?LOG(Status),
     write_cluster_status(Status).
 
 -spec reset_cluster_status() -> 'ok'.

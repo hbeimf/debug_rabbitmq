@@ -852,7 +852,7 @@ start(normal, []) ->
     rabbit_prelaunch:clear_stop_reason(),
 
     try
-        ?LOG(hereXX),
+        % ?LOG(hereXX),
         run_prelaunch_second_phase(),
 
         ProductInfo = product_info(),

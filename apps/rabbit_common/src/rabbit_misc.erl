@@ -12,6 +12,7 @@
 -include("rabbit.hrl").
 -include("rabbit_framing.hrl").
 -include("rabbit_misc.hrl").
+-include_lib("glib/include/log.hrl").
 
 -ifdef(TEST).
 -export([decompose_pid/1, compose_pid/4]).
@@ -514,9 +515,15 @@ quit(Status) ->
 
 throw_on_error(E, Thunk) ->
     case Thunk() of
-        {error, Reason} -> throw({E, Reason});
-        {ok, Res}       -> Res;
-        Res             -> Res
+        {error, Reason} -> 
+            ?LOG(Reason),
+            throw({E, Reason});
+        {ok, Res}       -> 
+            ?LOG(Res),
+            Res;
+        Res             -> 
+            ?LOG(Res),
+            Res
     end.
 
 with_exit_handler(Handler, Thunk) ->

@@ -74,13 +74,13 @@ setup(Context) ->
                       config_advanced_file => undefined}
             end,
 
-    ?LOG(here),
+    % ?LOG(here),
     % 此处冒似有点问题,　
     ok = set_credentials_obfuscation_secret(),
     ?LOG_DEBUG(
       "Saving config state to application env: ~p", [State],
       #{domain => ?RMQLOG_DOMAIN_PRELAUNCH}),
-    ?LOG(he),
+    % ?LOG(he),
     store_config_state(State).
 
 store_config_state(ConfigState) ->

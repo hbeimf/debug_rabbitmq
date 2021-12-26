@@ -80,7 +80,7 @@ decrypt(Term) ->
 %%%===================================================================
 
 init([]) ->
-    ?LOG(here),
+    % ?LOG(here),
     init_state().
 
 handle_call({get_config, enabled}, _From, #state{enabled=Enabled}=State) ->

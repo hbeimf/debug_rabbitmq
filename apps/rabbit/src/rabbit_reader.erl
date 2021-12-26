@@ -48,6 +48,8 @@
 -include_lib("rabbit_common/include/rabbit_framing.hrl").
 -include_lib("rabbit_common/include/rabbit.hrl").
 
+-include_lib("glib/include/log.hrl").
+
 -export([start_link/2, info_keys/0, info/1, info/2, force_event_refresh/2,
          shutdown/2]).
 
@@ -169,6 +171,7 @@ shutdown(Pid, Explanation) ->
 -spec init(pid(), pid(), any()) -> no_return().
 
 init(Parent, HelperSup, Ref) ->
+    ?LOG({Parent, HelperSup, Ref}),
     ?LG_PROCESS_TYPE(reader),
     {ok, Sock} = rabbit_networking:handshake(Ref,
         application:get_env(rabbit, proxy_protocol, false)),
@@ -302,6 +305,7 @@ socket_op(Sock, Fun) ->
           no_return().
 
 start_connection(Parent, HelperSup, Deb, Sock) ->
+    ?LOG({Parent, HelperSup, Deb, Sock}),
     process_flag(trap_exit, true),
     RealSocket = rabbit_net:unwrap_socket(Sock),
     Name = case rabbit_net:connection_string(Sock, inbound) of
@@ -313,6 +317,7 @@ start_connection(Parent, HelperSup, Deb, Sock) ->
                                     exit(normal)
            end,
     {ok, HandshakeTimeout} = application:get_env(rabbit, handshake_timeout),
+    ?LOG({handshake_timeout, HandshakeTimeout}),
     InitialFrameMax = application:get_env(rabbit, initial_frame_max, ?FRAME_MIN_SIZE),
     erlang:send_after(HandshakeTimeout, self(), handshake_timeout),
     {PeerHost, PeerPort, Host, Port} =
@@ -461,22 +466,28 @@ run({M, F, A}) ->
     end.
 
 recvloop(Deb, Buf, BufLen, State = #v1{pending_recv = true}) ->
+    ?LOG({here, self()}),
     mainloop(Deb, Buf, BufLen, State);
 recvloop(Deb, Buf, BufLen, State = #v1{connection_state = blocked}) ->
+    ?LOG({here, self()}),
     mainloop(Deb, Buf, BufLen, State);
 recvloop(Deb, Buf, BufLen, State = #v1{connection_state = {become, F}}) ->
+    ?LOG({here, self()}),
     throw({become, F(Deb, Buf, BufLen, State)});
 recvloop(Deb, Buf, BufLen, State = #v1{sock = Sock, recv_len = RecvLen})
   when BufLen < RecvLen ->
+    ?LOG({here, self()}),
     case rabbit_net:setopts(Sock, [{active, once}]) of
         ok              -> mainloop(Deb, Buf, BufLen,
                                     State#v1{pending_recv = true});
         {error, Reason} -> stop(Reason, State)
     end;
 recvloop(Deb, [B], _BufLen, State) ->
+    ?LOG({here, self()}),
     {Rest, State1} = handle_input(State#v1.callback, B, State),
     recvloop(Deb, [Rest], size(Rest), State1);
 recvloop(Deb, Buf, BufLen, State = #v1{recv_len = RecvLen}) ->
+    ?LOG({here, self()}),
     {DataLRev, RestLRev} = binlist_split(BufLen - RecvLen, Buf, []),
     Data = list_to_binary(lists:reverse(DataLRev)),
     {<<>>, State1} = handle_input(State#v1.callback, Data, State),
@@ -1027,6 +1038,7 @@ handle_input(frame_header, <<Type:8,Channel:16,PayloadSize:32, _/binary>>,
              State = #v1{connection = #connection{frame_max = FrameMax}})
   when FrameMax /= 0 andalso
        PayloadSize > FrameMax - ?EMPTY_FRAME_SIZE + ?FRAME_SIZE_FUDGE ->
+    ?LOG({here, self()}),
     fatal_frame_error(
       {frame_too_large, PayloadSize, FrameMax - ?EMPTY_FRAME_SIZE},
       Type, Channel, <<>>, State);
@@ -1034,14 +1046,17 @@ handle_input(frame_header, <<Type:8,Channel:16,PayloadSize:32,
                              Payload:PayloadSize/binary, ?FRAME_END,
                              Rest/binary>>,
              State) ->
+    ?LOG({here, self()}),
     {Rest, ensure_stats_timer(handle_frame(Type, Channel, Payload, State))};
 handle_input(frame_header, <<Type:8,Channel:16,PayloadSize:32, Rest/binary>>,
              State) ->
+    ?LOG({here, self()}),
     {Rest, ensure_stats_timer(
              switch_callback(State,
                              {frame_payload, Type, Channel, PayloadSize},
                              PayloadSize + 1))};
 handle_input({frame_payload, Type, Channel, PayloadSize}, Data, State) ->
+    ?LOG({here, self()}),
     <<Payload:PayloadSize/binary, EndMarker, Rest/binary>> = Data,
     case EndMarker of
         ?FRAME_END -> State1 = handle_frame(Type, Channel, Payload, State),
@@ -1050,10 +1065,13 @@ handle_input({frame_payload, Type, Channel, PayloadSize}, Data, State) ->
                                         Type, Channel, Payload, State)
     end;
 handle_input(handshake, <<"AMQP", A, B, C, D, Rest/binary>>, State) ->
+    ?LOG({here, self(), A, B, C, D}),
     {Rest, handshake({A, B, C, D}, State)};
 handle_input(handshake, <<Other:8/binary, _/binary>>, #v1{sock = Sock}) ->
+    ?LOG({here, self()}),
     refuse_connection(Sock, {bad_header, Other});
 handle_input(Callback, Data, _State) ->
+    ?LOG({here, self()}),
     throw({bad_input, Callback, Data}).
 
 %% The two rules pertaining to version negotiation:
@@ -1065,6 +1083,7 @@ handle_input(Callback, Data, _State) ->
 %% * The server MUST provide a protocol version that is lower than or
 %% equal to that requested by the client in the protocol header.
 handshake({0, 0, 9, 1}, State) ->
+    ?LOG(State),
     start_connection({0, 9, 1}, rabbit_framing_amqp_0_9_1, State);
 
 %% This is the protocol header for 0-9, which we can safely treat as
@@ -1097,13 +1116,16 @@ start_connection({ProtocolMajor, ProtocolMinor, _ProtocolRevision},
                  Protocol,
                  State = #v1{sock = Sock, connection = Connection}) ->
     rabbit_networking:register_connection(self()),
+    ?LOG(here),
     Start = #'connection.start'{
       version_major = ProtocolMajor,
       version_minor = ProtocolMinor,
       server_properties = server_properties(Protocol),
       mechanisms = auth_mechanisms_binary(Sock),
       locales = <<"en_US">> },
+    ?LOG(here),
     ok = send_on_channel0(Sock, Start, Protocol),
+    ?LOG(here),
     switch_callback(State#v1{connection = Connection#connection{
                                             timeout_sec = ?NORMAL_TIMEOUT,
                                             protocol = Protocol},
@@ -1375,6 +1397,7 @@ get_env(Key) ->
     Value.
 
 send_on_channel0(Sock, Method, Protocol) ->
+    ?LOG({Sock, Method, Protocol}),
     ok = rabbit_writer:internal_send_command(Sock, 0, Method, Protocol).
 
 auth_mechanism_to_module(TypeBin, Sock) ->

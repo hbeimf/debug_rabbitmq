@@ -46,6 +46,7 @@
 
 -record(state, {on_shutdown, label, ip, port}).
 
+-include_lib("glib/include/log.hrl").
 %%----------------------------------------------------------------------------
 
 -type mfargs() :: {atom(), atom(), [any()]}.
@@ -67,6 +68,7 @@ init({IPAddress, Port, {M, F, A}, OnShutdown, Label}) ->
     process_flag(trap_exit, true),
     logger:info("started ~s on ~s:~p", [Label, rabbit_misc:ntoab(IPAddress), Port]),
     apply(M, F, A ++ [IPAddress, Port]),
+    ?LOG(#{m => M, f => F, a => A ++ [IPAddress, Port]}),
     State0 = #state{
         on_shutdown = OnShutdown,
         label = Label,

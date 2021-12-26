@@ -9,6 +9,8 @@
 -include("rabbit_framing.hrl").
 -include("rabbit.hrl").
 
+-include_lib("glib/include/log.hrl").
+
 -export([build_simple_method_frame/3,
          build_simple_content_frames/4,
          build_heartbeat_frame/0]).
@@ -47,9 +49,13 @@
 %%----------------------------------------------------------------------------
 
 build_simple_method_frame(ChannelInt, MethodRecord, Protocol) ->
+    ?LOG({here, Protocol, MethodRecord}),
     MethodFields = Protocol:encode_method_fields(MethodRecord),
+    ?LOG(here),
     MethodName = rabbit_misc:method_record_type(MethodRecord),
+    ?LOG(here),
     {ClassId, MethodId} = Protocol:method_id(MethodName),
+    ?LOG(here),
     create_frame(1, ChannelInt, [<<ClassId:16, MethodId:16>>, MethodFields]).
 
 build_simple_content_frames(ChannelInt, Content, FrameMax, Protocol) ->

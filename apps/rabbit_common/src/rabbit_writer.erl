@@ -26,6 +26,8 @@
 
 -include("rabbit.hrl").
 -include("rabbit_framing.hrl").
+-include_lib("glib/include/log.hrl").
+
 
 -export([start/6, start_link/6, start/7, start_link/7, start/8, start_link/8]).
 
@@ -320,6 +322,7 @@ call(Pid, Msg) ->
 %%---------------------------------------------------------------------------
 
 assemble_frame(Channel, MethodRecord, Protocol) ->
+    ?LOG({Channel, MethodRecord, Protocol}),
     rabbit_binary_generator:build_simple_method_frame(
       Channel, MethodRecord, Protocol).
 
@@ -333,10 +336,12 @@ assemble_frames(Channel, MethodRecord, Content, FrameMax, Protocol) ->
     [MethodFrame | ContentFrames].
 
 tcp_send(Sock, Data) ->
+    ?LOG({Sock, Data}),
     rabbit_misc:throw_on_error(inet_error,
                                fun () -> rabbit_net:send(Sock, Data) end).
 
 internal_send_command(Sock, Channel, MethodRecord, Protocol) ->
+    ?LOG({Sock, Channel, MethodRecord, Protocol}),
     ok = tcp_send(Sock, assemble_frame(Channel, MethodRecord, Protocol)).
 
 internal_send_command(Sock, Channel, MethodRecord, Content, FrameMax,

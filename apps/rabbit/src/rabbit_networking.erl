@@ -74,9 +74,12 @@
 -type protocol() :: atom().
 -type label() :: string().
 
+-include_lib("glib/include/log.hrl").
+
 -spec boot() -> 'ok' | no_return().
 
 boot() ->
+    ?LOG(start_ranch),
     ok = record_distribution_listener(),
     _ = application:start(ranch),
     rabbit_log:debug("Started Ranch"),
@@ -291,6 +294,8 @@ start_listener0(Address, NumAcceptors, ConcurrentConnsSupsCount, Protocol, Label
     Spec = tcp_listener_spec(rabbit_tcp_listener_sup, Address, Opts,
                              Transport, rabbit_connection_sup, [], Protocol,
                              NumAcceptors, ConcurrentConnsSupsCount, Label),
+
+    ?LOG(Spec),
     case supervisor:start_child(rabbit_sup, Spec) of
         {ok, _}          -> ok;
         {error, {{shutdown, {failed_to_start_child, _,
@@ -332,6 +337,7 @@ tcp_listener_started(Protocol, Opts, IPAddress, Port) ->
     %% We need the ip to distinguish e.g. 0.0.0.0 and 127.0.0.1
     %% We need the host so we can distinguish multiple instances of the above
     %% in a cluster.
+    ?LOG(#{node => node(), protocol => Protocol, host => tcp_host(IPAddress), ip_address => IPAddress, port => Port, opts => Opts}),
     ok = mnesia:dirty_write(
            rabbit_listener,
            #listener{node = node(),

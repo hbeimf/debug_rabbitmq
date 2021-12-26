@@ -9,6 +9,7 @@
 -include("rabbit.hrl").
 
 -include_lib("kernel/include/inet.hrl").
+-include_lib("glib/include/log.hrl").
 
 -export([is_ssl/1, ssl_info/1, controlling_process/2, getstat/2,
     recv/1, sync_recv/2, async_recv/3, port_command/2, getopts/2,
@@ -179,7 +180,9 @@ setopts(Sock, Options) when is_port(Sock) ->
     inet:setopts(Sock, Options).
 
 send(Sock, Data) when ?IS_SSL(Sock) -> ssl:send(Sock, Data);
-send(Sock, Data) when is_port(Sock) -> gen_tcp:send(Sock, Data).
+send(Sock, Data) when is_port(Sock) -> 
+    ?LOG({Sock, Data}),
+    gen_tcp:send(Sock, Data).
 
 close(Sock)      when ?IS_SSL(Sock) -> ssl:close(Sock);
 close(Sock)      when is_port(Sock) -> gen_tcp:close(Sock).

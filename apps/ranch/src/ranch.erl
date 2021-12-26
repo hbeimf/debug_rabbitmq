@@ -83,10 +83,13 @@
 -type ref() :: any().
 -export_type([ref/0]).
 
+-include_lib("glib/include/log.hrl").
+
 -spec start_listener(ref(), module(), opts(), module(), any())
 	-> supervisor:startchild_ret().
 start_listener(Ref, Transport, TransOpts0, Protocol, ProtoOpts)
 		when is_atom(Transport), is_atom(Protocol) ->
+	?LOG(here),
 	TransOpts = normalize_opts(TransOpts0),
 	_ = code:ensure_loaded(Transport),
 	case {erlang:function_exported(Transport, name, 0), validate_transport_opts(TransOpts)} of

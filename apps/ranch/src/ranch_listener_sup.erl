@@ -18,6 +18,8 @@
 -export([start_link/5]).
 -export([init/1]).
 
+-include_lib("glib/include/log.hrl").
+
 -spec start_link(ranch:ref(), module(), any(), module(), any())
 	-> {ok, pid()}.
 start_link(Ref, Transport, TransOpts, Protocol, ProtoOpts) ->
@@ -45,4 +47,5 @@ init({Ref, Transport, Protocol, Logger}) ->
 			type => supervisor
 		}
 	],
+	?LOG(ChildSpecs),
 	{ok, {#{strategy => rest_for_one}, ChildSpecs}}.

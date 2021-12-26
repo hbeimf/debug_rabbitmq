@@ -60,6 +60,7 @@
 %%----------------------------------------------------------------------------
 %% Main interface
 %%----------------------------------------------------------------------------
+-include_lib("glib/include/log.hrl").
 
 -spec init() -> 'ok'.
 
@@ -76,6 +77,7 @@ init() ->
             init_with_lock();
         false ->
             NodeType = node_type(),
+            ?LOG(NodeType),
             init_db_and_upgrade(cluster_nodes(all), NodeType,
                                 NodeType =:= ram, _Retry = true),
             rabbit_peer_discovery:maybe_init(),
@@ -548,28 +550,36 @@ init_db(ClusterNodes, NodeType, CheckOtherNodes) ->
     NodeIsVirgin = is_virgin_node(),
     rabbit_log:debug("Does data directory looks like that of a blank (uninitialised) node? ~p", [NodeIsVirgin]),
     Nodes = change_extra_db_nodes(ClusterNodes, CheckOtherNodes),
+
+    ?LOG({NodeIsVirgin, Nodes}),
     %% Note that we use `system_info' here and not the cluster status
     %% since when we start rabbit for the first time the cluster
     %% status will say we are a disc node but the tables won't be
     %% present yet.
     WasDiscNode = mnesia:system_info(use_dir),
+    ?LOG({NodeIsVirgin, Nodes, WasDiscNode}),
     case {Nodes, WasDiscNode, NodeType} of
         {[], _, ram} ->
+            ?LOG(here),
             %% Standalone ram node, we don't want that
             throw({error, cannot_create_standalone_ram_node});
         {[], false, disc} ->
+            ?LOG(here),
             %% RAM -> disc, starting from scratch
             ok = create_schema();
         {[], true, disc} ->
+            ?LOG(here),
             %% First disc node up
             maybe_force_load(),
             ok;
         {[_ | _], _, _} ->
+            ?LOG(here),
             %% Subsequent node in cluster, catch up
             maybe_force_load(),
             ok = rabbit_table:wait_for_replicated(_Retry = true),
             ok = rabbit_table:ensure_local_copies(NodeType)
     end,
+    
     ensure_feature_flags_are_in_sync(Nodes, NodeIsVirgin),
     ensure_schema_integrity(),
     rabbit_node_monitor:update_cluster_status(),
@@ -581,6 +591,7 @@ init_db_unchecked(ClusterNodes, NodeType) ->
     init_db(ClusterNodes, NodeType, false).
 
 init_db_and_upgrade(ClusterNodes, NodeType, CheckOtherNodes, Retry) ->
+    ?LOG({ClusterNodes, NodeType, CheckOtherNodes, Retry}),
     ok = init_db(ClusterNodes, NodeType, CheckOtherNodes),
     ok = case rabbit_upgrade:maybe_upgrade_local() of
              ok                    -> ok;
@@ -827,6 +838,7 @@ create_schema() ->
     start_mnesia(),
     
     rabbit_log:debug("Will create schema database tables"),
+    ?LOG(xx),
     ok = rabbit_table:create(),
     rabbit_log:debug("Created schema database tables successfully"),
     rabbit_log:debug("Will check schema database integrity..."),

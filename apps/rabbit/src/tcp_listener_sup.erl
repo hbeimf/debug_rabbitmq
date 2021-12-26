@@ -19,6 +19,8 @@
 -export([start_link/11]).
 -export([init/1]).
 
+-include_lib("glib/include/log.hrl").
+
 -type mfargs() :: {atom(), atom(), [any()]}.
 
 -spec start_link
@@ -34,6 +36,10 @@ start_link(IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartu
 
 init({IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartup, OnShutdown,
       ConcurrentAcceptorCount, ConcurrentConnsSups, Label}) ->
+
+    ?LOG({IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartup, OnShutdown,
+    ConcurrentAcceptorCount, ConcurrentConnsSups, Label}),
+
     {ok, AckTimeout} = application:get_env(rabbit, ssl_handshake_timeout),
     MaxConnections = max_conn(rabbit_misc:get_env(rabbit, connection_max, infinity),
                               ConcurrentConnsSups),
@@ -53,6 +59,8 @@ init({IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartup, On
     RanchChildSpec = ranch:child_spec(rabbit_networking:ranch_ref(IPAddress, Port),
         Transport, RanchListenerOpts,
         ProtoSup, ProtoOpts),
+
+    ?LOG(#{one => RanchChildSpec, two => OurChildSpec}),
     {ok, {Flags, [RanchChildSpec, OurChildSpec]}}.
 
 max_conn(infinity, _) ->
