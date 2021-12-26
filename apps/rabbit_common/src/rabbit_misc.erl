@@ -364,6 +364,21 @@ val(Value) ->
 %% - have a local ram copy
 %% - do not have any indices
 dirty_read({Table, Key}) ->
+    ?LOG1({Table, Key}),
+    % (rabbit@maomao-VirtualBox)2> ets:lookup(rabbit_user, <<"guest">>).
+    % [{internal_user,<<"guest">>,
+    %                 <<63,226,4,100,98,173,116,54,44,2,184,158,8,5,40,157,5,16,
+    %                 67,52,235,30,73,46,118,...>>,
+    %                 [administrator],
+    %                 rabbit_password_hashing_sha256,#{}}]
+    % (rabbit@maomao-VirtualBox)3> mnesia:dirty_read(rabbit_user, <<"guest">>).
+    % [{internal_user,<<"guest">>,
+    %                 <<63,226,4,100,98,173,116,54,44,2,184,158,8,5,40,157,5,16,
+    %                 67,52,235,30,73,46,118,...>>,
+    %                 [administrator],
+    %                 rabbit_password_hashing_sha256,#{}}]
+
+
     case ets:lookup(Table, Key) of
         [Result] -> {ok, Result};
         []       -> {error, not_found}

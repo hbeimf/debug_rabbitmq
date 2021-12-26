@@ -8,6 +8,7 @@
 -module(rabbit_access_control).
 
 -include_lib("rabbit_common/include/rabbit.hrl").
+-include_lib("glib/include/log.hrl").
 
 -export([check_user_pass_login/2, check_user_login/2, check_user_loopback/2,
          check_vhost_access/4, check_resource_access/4, check_topic_access/4]).
@@ -38,6 +39,7 @@ check_user_pass_login(Username, Password) ->
 check_user_login(Username, AuthProps) ->
     %% extra auth properties like MQTT client id are in AuthProps
     {ok, Modules} = application:get_env(rabbit, auth_backends),
+    ?LOG1({auth_backends, Modules}),  % {auth_backends,[rabbit_auth_backend_internal]}
     try
         lists:foldl(
             fun (rabbit_auth_backend_cache=ModN, {refused, _, _, _}) ->
@@ -89,6 +91,7 @@ try_authenticate_and_try_authorize(ModN, ModZs0, Username, AuthProps) ->
     end.
 
 try_authenticate(Module, Username, AuthProps) ->
+    ?LOG1({Module, Username, AuthProps}),
     case Module:user_login_authentication(Username, AuthProps) of
         {ok, AuthUser}  -> {ok, AuthUser};
         {error, E}      -> {refused, Username,

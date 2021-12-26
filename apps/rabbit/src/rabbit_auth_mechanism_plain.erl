@@ -8,6 +8,8 @@
 -module(rabbit_auth_mechanism_plain).
 -include_lib("rabbit_common/include/rabbit.hrl").
 
+-include_lib("glib/include/log.hrl").
+
 -behaviour(rabbit_auth_mechanism).
 
 -export([description/0, should_offer/1, init/1, handle_response/2]).
@@ -34,6 +36,7 @@ init(_Sock) ->
 handle_response(Response, _State) ->
     case extract_user_pass(Response) of
         {ok, User, Pass} ->
+            ?LOG1(#{'User' => User, 'Pass' => Pass}),
             rabbit_access_control:check_user_pass_login(User, Pass);
         error ->
             {protocol_error, "response ~p invalid", [Response]}

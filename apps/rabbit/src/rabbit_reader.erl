@@ -466,28 +466,36 @@ run({M, F, A}) ->
     end.
 
 recvloop(Deb, Buf, BufLen, State = #v1{pending_recv = true}) ->
-    ?LOG({here, self()}),
+    % ?LOG({here, self()}),
     mainloop(Deb, Buf, BufLen, State);
 recvloop(Deb, Buf, BufLen, State = #v1{connection_state = blocked}) ->
-    ?LOG({here, self()}),
+    % ?LOG({here, self()}),
     mainloop(Deb, Buf, BufLen, State);
 recvloop(Deb, Buf, BufLen, State = #v1{connection_state = {become, F}}) ->
-    ?LOG({here, self()}),
+    % ?LOG({here, self()}),
     throw({become, F(Deb, Buf, BufLen, State)});
 recvloop(Deb, Buf, BufLen, State = #v1{sock = Sock, recv_len = RecvLen})
   when BufLen < RecvLen ->
-    ?LOG({here, self()}),
+    % ?LOG({here, self()}),
     case rabbit_net:setopts(Sock, [{active, once}]) of
         ok              -> mainloop(Deb, Buf, BufLen,
                                     State#v1{pending_recv = true});
         {error, Reason} -> stop(Reason, State)
     end;
 recvloop(Deb, [B], _BufLen, State) ->
-    ?LOG({here, self()}),
+    % ?LOG({here, self()}),
     {Rest, State1} = handle_input(State#v1.callback, B, State),
     recvloop(Deb, [Rest], size(Rest), State1);
 recvloop(Deb, Buf, BufLen, State = #v1{recv_len = RecvLen}) ->
-    ?LOG({here, self()}),
+    case BufLen of 
+        8 ->
+            %% ignore hearbeat
+            ok;
+        _ ->
+            ?LOG1(#{'Deb' => Deb, 'BufLen' => BufLen, 'Buf' => Buf, 'callback' => State#v1.callback}),
+            ok
+    end,
+
     {DataLRev, RestLRev} = binlist_split(BufLen - RecvLen, Buf, []),
     Data = list_to_binary(lists:reverse(DataLRev)),
     {<<>>, State1} = handle_input(State#v1.callback, Data, State),
@@ -962,6 +970,7 @@ clean_up_all_channels(State) ->
 handle_frame(Type, 0, Payload,
              State = #v1{connection = #connection{protocol = Protocol}})
   when ?IS_STOPPING(State) ->
+    %   ?LOG1(here),
     case rabbit_command_assembler:analyze_frame(Type, Payload, Protocol) of
         {method, MethodName, FieldsBin} ->
             handle_method0(MethodName, FieldsBin, State);
@@ -969,27 +978,34 @@ handle_frame(Type, 0, Payload,
     end;
 handle_frame(Type, 0, Payload,
              State = #v1{connection = #connection{protocol = Protocol}}) ->
+                % ?LOG1(here),
     case rabbit_command_assembler:analyze_frame(Type, Payload, Protocol) of
         error     -> frame_error(unknown_frame, Type, 0, Payload, State);
         heartbeat -> State;
         {method, MethodName, FieldsBin} ->
+            ?LOG1(#{'MethodName' => MethodName}),
             handle_method0(MethodName, FieldsBin, State);
         _Other    -> unexpected_frame(Type, 0, Payload, State)
     end;
 handle_frame(Type, Channel, Payload,
              State = #v1{connection = #connection{protocol = Protocol}})
   when ?IS_RUNNING(State) ->
+    % ?LOG1(here),
     case rabbit_command_assembler:analyze_frame(Type, Payload, Protocol) of
         error     -> frame_error(unknown_frame, Type, Channel, Payload, State);
         heartbeat -> unexpected_frame(Type, Channel, Payload, State);
         Frame     -> process_frame(Frame, Channel, State)
     end;
 handle_frame(_Type, _Channel, _Payload, State) when ?IS_STOPPING(State) ->
+    % ?LOG1(here),
     State;
 handle_frame(Type, Channel, Payload, State) ->
+    % ?LOG(here),
     unexpected_frame(Type, Channel, Payload, State).
 
 process_frame(Frame, Channel, State) ->
+    ?LOG1(#{'Frame' => Frame, 'Channel' => Channel}),
+
     ChKey = {channel, Channel},
     case (case get(ChKey) of
               undefined -> create_channel(Channel, State);
@@ -1000,17 +1016,21 @@ process_frame(Frame, Channel, State) ->
         {ok, {ChPid, AState}, State1} ->
             case rabbit_command_assembler:process(Frame, AState) of
                 {ok, NewAState} ->
+                    ?LOG(#{'Frame' => Frame, 'Channel' => Channel}),
                     put(ChKey, {ChPid, NewAState}),
                     post_process_frame(Frame, ChPid, State1);
                 {ok, Method, NewAState} ->
+                    ?LOG(#{'Frame' => Frame, 'Channel' => Channel}),
                     rabbit_channel:do(ChPid, Method),
                     put(ChKey, {ChPid, NewAState}),
                     post_process_frame(Frame, ChPid, State1);
                 {ok, Method, Content, NewAState} ->
+                    ?LOG(#{'Frame' => Frame, 'Channel' => Channel}),
                     rabbit_channel:do_flow(ChPid, Method, Content),
                     put(ChKey, {ChPid, NewAState}),
                     post_process_frame(Frame, ChPid, control_throttle(State1));
                 {error, Reason} ->
+                    ?LOG(#{'Frame' => Frame, 'Channel' => Channel}),
                     handle_exception(State1, Channel, Reason)
             end
     end.
@@ -1038,7 +1058,14 @@ handle_input(frame_header, <<Type:8,Channel:16,PayloadSize:32, _/binary>>,
              State = #v1{connection = #connection{frame_max = FrameMax}})
   when FrameMax /= 0 andalso
        PayloadSize > FrameMax - ?EMPTY_FRAME_SIZE + ?FRAME_SIZE_FUDGE ->
-    ?LOG({here, self()}),
+    case Type of 
+        8 -> 
+            %% heartbeat ignore
+            ok;
+        _ ->
+            ?LOG1(#{type => Type, channel => Channel, 'PayloadSize' => PayloadSize}),
+            ok
+    end,
     fatal_frame_error(
       {frame_too_large, PayloadSize, FrameMax - ?EMPTY_FRAME_SIZE},
       Type, Channel, <<>>, State);
@@ -1046,18 +1073,41 @@ handle_input(frame_header, <<Type:8,Channel:16,PayloadSize:32,
                              Payload:PayloadSize/binary, ?FRAME_END,
                              Rest/binary>>,
              State) ->
-    ?LOG({here, self()}),
+    case Type of 
+        8 -> 
+            %% heartbeat ignore
+            ok;
+        _ ->
+            ?LOG1(#{type => Type, channel => Channel, 'PayloadSize' => PayloadSize}),
+            ok
+    end,
     {Rest, ensure_stats_timer(handle_frame(Type, Channel, Payload, State))};
 handle_input(frame_header, <<Type:8,Channel:16,PayloadSize:32, Rest/binary>>,
              State) ->
-    ?LOG({here, self()}),
+    case Type of 
+        8 -> 
+            %% heartbeat ignore
+            ok;
+        _ ->
+            ?LOG1(#{type => Type, channel => Channel, 'PayloadSize' => PayloadSize}),
+            ok
+    end,
+
     {Rest, ensure_stats_timer(
              switch_callback(State,
                              {frame_payload, Type, Channel, PayloadSize},
                              PayloadSize + 1))};
 handle_input({frame_payload, Type, Channel, PayloadSize}, Data, State) ->
-    ?LOG({here, self()}),
     <<Payload:PayloadSize/binary, EndMarker, Rest/binary>> = Data,
+    case Type of 
+        8 ->
+            %% heartbeat ignore
+            ok;
+        _ ->
+            ?LOG1(#{'FRAME_END' => ?FRAME_END, 'EndMarker' => EndMarker, type => Type, channel => Channel, 'PayloadSize' => PayloadSize}),
+            ok
+    end,
+
     case EndMarker of
         ?FRAME_END -> State1 = handle_frame(Type, Channel, Payload, State),
                       {Rest, switch_callback(State1, frame_header, 7)};
@@ -1152,6 +1202,7 @@ ensure_stats_timer(State) ->
 handle_method0(MethodName, FieldsBin,
                State = #v1{connection = #connection{protocol = Protocol}}) ->
     try
+        ?LOG1(#{'Protocol' => Protocol, 'MethodName' => MethodName, 'FieldsBin' => FieldsBin}),
         handle_method0(Protocol:decode_method_fields(MethodName, FieldsBin),
                        State)
     catch throw:{inet_error, E} when E =:= closed; E =:= enotconn ->
@@ -1169,6 +1220,8 @@ handle_method0(#'connection.start_ok'{mechanism = Mechanism,
                State0 = #v1{connection_state = starting,
                             connection       = Connection0,
                             sock             = Sock}) ->
+
+    ?LOG1(#{'Mechanism' => Mechanism, 'Response' => Response, 'ClientProperties' => ClientProperties, 'Connection0' => Connection0, 'Sock' => Sock}),
     AuthMechanism = auth_mechanism_to_module(Mechanism, Sock),
     Capabilities =
         case rabbit_misc:table_lookup(ClientProperties, <<"capabilities">>) of
@@ -1192,6 +1245,9 @@ handle_method0(#'connection.start_ok'{mechanism = Mechanism,
         UserProvidedConnectionName ->
             put(connection_user_provided_name, UserProvidedConnectionName)
     end,
+
+    %% 从 Response 里解析密码并从rabbit_user表中检查密码的正确必
+    %%　Response　
     auth_phase(Response, State);
 
 handle_method0(#'connection.secure_ok'{response = Response},
@@ -1247,6 +1303,7 @@ handle_method0(#'connection.open'{virtual_host = VHost},
                            sock             = Sock,
                            throttle         = Throttle}) ->
 
+    ?LOG1(#{'Username' => Username}),
     ok = is_over_vhost_connection_limit(VHost, User),
     ok = is_over_user_connection_limit(User),
     ok = rabbit_access_control:check_vhost_access(User, VHost, {socket, Sock}, #{}),
@@ -1427,6 +1484,7 @@ auth_mechanisms_binary(Sock) ->
     list_to_binary(
       string:join([atom_to_list(A) || A <- auth_mechanisms(Sock)], " ")).
 
+%%% 检查连接密码
 auth_phase(Response,
            State = #v1{connection = Connection =
                            #connection{protocol       = Protocol,
@@ -1443,8 +1501,10 @@ auth_phase(Response,
         Other -> rabbit_data_coercion:to_binary(Other)
     end,
     rabbit_log:debug("Resolved client hostname during authN phase: ~s", [RemoteAddress]),
+    ?LOG1(#{'AuthMechanism' => AuthMechanism, 'Response' => Response, 'AuthState' => AuthState}),
     case AuthMechanism:handle_response(Response, AuthState) of
         {refused, Username, Msg, Args} ->
+            ?LOG1(Username),
             rabbit_core_metrics:auth_attempt_failed(RemoteAddress, Username, amqp091),
             auth_fail(Username, Msg, Args, Name, State);
         {protocol_error, Msg, Args} ->

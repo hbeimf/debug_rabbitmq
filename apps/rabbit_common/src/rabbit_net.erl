@@ -181,7 +181,8 @@ setopts(Sock, Options) when is_port(Sock) ->
 
 send(Sock, Data) when ?IS_SSL(Sock) -> ssl:send(Sock, Data);
 send(Sock, Data) when is_port(Sock) -> 
-    ?LOG({Sock, Data}),
+    % ?LOG(#{sock => Sock, data => Data}),
+    %% send to client 
     gen_tcp:send(Sock, Data).
 
 close(Sock)      when ?IS_SSL(Sock) -> ssl:close(Sock);

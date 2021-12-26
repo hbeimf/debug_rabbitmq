@@ -7,6 +7,7 @@
 
 -module(rabbit_auth_backend_internal).
 -include_lib("rabbit_common/include/rabbit.hrl").
+-include_lib("glib/include/log.hrl").
 
 -behaviour(rabbit_authn_backend).
 -behaviour(rabbit_authz_backend).
@@ -73,6 +74,7 @@ user_login_authentication(Username, []) ->
 %% For cases when we do have a set of credentials. rabbit_auth_mechanism_plain:handle_response/2
 %% performs initial validation.
 user_login_authentication(Username, AuthProps) ->
+    ?LOG1({Username, AuthProps}),
     case lists:keyfind(password, 1, AuthProps) of
         {password, <<"">>} ->
             {refused, ?BLANK_PASSWORD_REJECTION_MESSAGE,
@@ -81,11 +83,13 @@ user_login_authentication(Username, AuthProps) ->
             {refused, ?BLANK_PASSWORD_REJECTION_MESSAGE,
              [Username]};
         {password, Cleartext} ->
+            ?LOG1({Username, AuthProps}),
             internal_check_user_login(
               Username,
               fun(User) ->
                   case internal_user:get_password_hash(User) of
                       <<Salt:4/binary, Hash/binary>> ->
+                          ?LOG1({User,Hash}),
                           Hash =:= rabbit_password:salted_hash(
                               hashing_module_for_user(User), Salt, Cleartext);
                       _ ->
@@ -104,6 +108,7 @@ user_login_authorization(Username, _AuthProps) ->
     end.
 
 internal_check_user_login(Username, Fun) ->
+    ?LOG1(Username),
     Refused = {refused, "user '~s' - invalid credentials", [Username]},
     case lookup_user(Username) of
         {ok, User} ->
@@ -336,6 +341,7 @@ delete_user(Username, ActingUser) ->
             rabbit_types:error('not_found').
 
 lookup_user(Username) ->
+    ?LOG1(Username),
     rabbit_misc:dirty_read({rabbit_user, Username}).
 
 -spec exists(rabbit_types:username()) -> boolean().
