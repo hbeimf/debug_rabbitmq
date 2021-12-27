@@ -45,6 +45,7 @@
 -include_lib("rabbit_common/include/rabbit_misc.hrl").
 
 -include("amqqueue.hrl").
+-include_lib("glib/include/log.hrl").
 
 -behaviour(gen_server2).
 
@@ -258,6 +259,7 @@ start_link(Channel, ReaderPid, WriterPid, ConnPid, ConnName, Protocol, User,
 -spec do(pid(), rabbit_framing:amqp_method_record()) -> 'ok'.
 
 do(Pid, Method) ->
+    ?LOG2(#{'Pid' => Pid, 'Method' => Method}),
     rabbit_channel_common:do(Pid, Method).
 
 -spec do
@@ -641,13 +643,16 @@ handle_cast({method, Method, Content, Flow},
         flow   -> credit_flow:ack(Reader);
         noflow -> ok
     end,
+    ?LOG2(here),
     try handle_method(rabbit_channel_interceptor:intercept_in(
                         expand_shortcuts(Method, State), Content, IState),
                       State) of
         {reply, Reply, NewState} ->
+            ?LOG2(#{'Reply' => Reply}),
             ok = send(Reply, NewState),
             noreply(NewState);
         {noreply, NewState} ->
+            ?LOG2(here1),
             noreply(NewState);
         stop ->
             {stop, normal, State}
@@ -932,6 +937,7 @@ ok_msg(false, Msg) -> Msg.
 send(_Command, #ch{cfg = #conf{state = closing}}) ->
     ok;
 send(Command, #ch{cfg = #conf{writer_pid = WriterPid}}) ->
+    ?LOG2(#{'Command' => Command, 'WriterPid' => WriterPid}),
     ok = rabbit_writer:send_command(WriterPid, Command).
 
 format_soft_error(#amqp_error{name = N, explanation = E, method = M}) ->

@@ -8,6 +8,7 @@
 -module(rabbit_command_assembler).
 -include("rabbit_framing.hrl").
 -include("rabbit.hrl").
+-include_lib("glib/include/log.hrl").
 
 -export([analyze_frame/3, init/1, process/2]).
 
@@ -68,8 +69,10 @@ analyze_frame(_Type, _Body, _Protocol) ->
 init(Protocol) -> {ok, {method, Protocol}}.
 
 process({method, MethodName, FieldsBin}, {method, Protocol}) ->
+    ?LOG2({method, Protocol}),
     try
         Method = Protocol:decode_method_fields(MethodName, FieldsBin),
+        ?LOG2(#{'Method' => Method, 'Protocol' => Protocol, 'MethodName' => MethodName}),
         case Protocol:method_has_content(MethodName) of
             true  -> {ClassId, _MethodId} = Protocol:method_id(MethodName),
                      {ok, {content_header, Method, ClassId, Protocol}};

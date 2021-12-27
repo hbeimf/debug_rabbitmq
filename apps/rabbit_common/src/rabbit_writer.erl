@@ -355,6 +355,8 @@ internal_send_command_async(MethodRecord,
                             State = #wstate{channel   = Channel,
                                             protocol  = Protocol,
                                             pending   = Pending}) ->
+
+    ?LOG2(here),
     Frame = assemble_frame(Channel, MethodRecord, Protocol),
     maybe_flush(State#wstate{pending = [Frame | Pending]}).
 
@@ -364,6 +366,7 @@ internal_send_command_async(MethodRecord, Content,
                                             protocol     = Protocol,
                                             pending      = Pending,
                                             writer_gc_threshold = GCThreshold}) ->
+    ?LOG2(here),
     Frames = assemble_frames(Channel, MethodRecord, Content, FrameMax,
                              Protocol),
     maybe_gc_large_msg(Content, GCThreshold),
