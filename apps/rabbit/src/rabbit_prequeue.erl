@@ -23,6 +23,7 @@
 -include_lib("rabbit_common/include/rabbit.hrl").
 -include("amqqueue.hrl").
 
+-include_lib("glib/include/log.hrl").
 %%----------------------------------------------------------------------------
 
 -export_type([start_mode/0]).
@@ -91,7 +92,9 @@ crash_restart(Q0) when ?is_amqqueue(Q0) ->
 -spec handle_call(_, _, _) -> no_return().
 handle_call(_Msg, _From, _State)     -> exit(unreachable).
 -spec handle_cast(_, _) -> no_return().
-handle_cast(_Msg, _State)            -> exit(unreachable).
+handle_cast(Msg, _State)            -> 
+    ?LOG1(Msg),
+    exit(unreachable).
 -spec handle_info(_, _) -> no_return().
 handle_info(_Msg, _State)            -> exit(unreachable).
 -spec terminate(_, _) -> no_return().

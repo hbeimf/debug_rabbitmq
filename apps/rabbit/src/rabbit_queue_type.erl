@@ -1,6 +1,7 @@
 -module(rabbit_queue_type).
 -include("amqqueue.hrl").
 -include_lib("rabbit_common/include/resource.hrl").
+-include_lib("glib/include/log.hrl").
 
 -export([
          init/0,
@@ -444,6 +445,7 @@ module(QRef, Ctxs) ->
               stateless | state()) ->
     {ok, state(), actions()} | {error, Reason :: term()}.
 deliver(Qs, Delivery, State) ->
+    ?LOG1(#{'Qs' => Qs, 'Delivery' => Delivery, 'State' => State}),
     try
         deliver0(Qs, Delivery, State)
     catch
@@ -469,8 +471,10 @@ deliver0(Qs, Delivery, #?STATE{} = State0) ->
                                     [{Q, Ctx#ctx.state} | A]
                             end, [{Q, Ctx#ctx.state}], Acc)
                end, #{}, Qs),
+    ?LOG1(#{'ByType' => ByType}),
     %%% dispatch each group to queue type interface?
     {Xs, Actions} = maps:fold(fun(Mod, QSs, {X0, A0}) ->
+                                        ?LOG1(#{'Mod' => Mod, 'QSs' => QSs, 'Delivery' => Delivery}),
                                       {X, A} = Mod:deliver(QSs, Delivery),
                                       {X0 ++ X, A0 ++ A}
                               end, {[], []}, ByType),
@@ -479,6 +483,7 @@ deliver0(Qs, Delivery, #?STATE{} = State0) ->
                       Ctx = get_ctx_with(Q, Acc, S),
                       set_ctx(qref(Q), Ctx#ctx{state = S}, Acc)
               end, State0, Xs),
+    ?LOG1(#{'State' => State, 'Actions' => Actions}),
     return_ok(State, Actions).
 
 
@@ -613,4 +618,6 @@ return_ok(State0, Actions0) ->
              (Act, {S, A0}) ->
                   {S, [Act | A0]}
           end, {State0, []}, Actions0),
+
+    ?LOG1(#{'State' => State, 'Actions' => Actions}),
     {ok, State, lists:reverse(Actions)}.

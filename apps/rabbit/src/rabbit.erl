@@ -301,18 +301,21 @@
 -spec start() -> 'ok'.
 
 start() ->
+    ?LOG2(here),
     %% start() vs. boot(): we want to throw an error in start().
     start_it(temporary).
 
 -spec boot() -> 'ok'.
 
 boot() ->
+    ?LOG2(here),
     %% start() vs. boot(): we want the node to exit in boot(). Because
     %% applications are started with `transient`, any error during their
     %% startup will abort the node.
     start_it(transient).
 
 run_prelaunch_second_phase() ->
+    % ?LOG2(here),
     %% Finish the prelaunch phase started by the `rabbitmq_prelaunch`
     %% application.
     %%
@@ -842,6 +845,7 @@ rotate_logs() ->
           {'ok',pid()}.
 
 start(normal, []) ->
+    ?LOG2("starting rabbit from here..."),
     %% Reset boot state and clear the stop reason again (it was already
     %% made in rabbitmq_prelaunch).
     %%
@@ -854,8 +858,10 @@ start(normal, []) ->
     try
         % ?LOG(hereXX),
         run_prelaunch_second_phase(),
+        ?LOG(here),
 
         ProductInfo = product_info(),
+        % ?LOG2(ProductInfo),
         case ProductInfo of
             #{product_overridden := true,
               product_base_name := BaseName,
@@ -897,9 +903,11 @@ start(normal, []) ->
         true = register(rabbit, self()),
 
         print_banner(),
+        ?LOG2(here),
         log_banner(),
         warn_if_kernel_config_dubious(),
         warn_if_disc_io_options_dubious(),
+        ?LOG2(here),
 
         ?LOG_DEBUG(""),
         ?LOG_DEBUG("== Plugins (prelaunch phase) =="),
@@ -918,11 +926,17 @@ start(normal, []) ->
         ok = rabbit_feature_flags:refresh_feature_flags_after_app_load(
                Plugins),
 
+        ?LOG2(here),
+
         ?LOG_DEBUG(""),
         ?LOG_DEBUG("== Boot steps =="),
 
+        %% 启动一些主要业务
         ok = rabbit_boot_steps:run_boot_steps([rabbit | Plugins]),
+        ?LOG2(here),
         rabbit_boot_state:set(core_started),
+        ?LOG2(here),
+        %% 启动网络
         run_postlaunch_phase(Plugins),
         {ok, SupPid}
     catch
@@ -981,6 +995,7 @@ do_run_postlaunch_phase(Plugins) ->
 
         %% Start listeners after all plugins have been enabled,
         %% see rabbitmq/rabbitmq-server#2405.
+        ?LOG("start ranch XXXXXXXXXXX"),
         ?LOG_INFO("Ready to start client connection listeners"),
         ok = rabbit_networking:boot(),
 
@@ -1168,6 +1183,7 @@ log_broker_started(Plugins) ->
         "~n  " ?BG32_START "          " ?C_END "  ~s").
 
 print_banner() ->
+    ?LOG2(here),
     Product = product_name(),
     Version = product_version(),
     LineListFormatter = fun (Placeholder, [_ | Tail] = LL) ->

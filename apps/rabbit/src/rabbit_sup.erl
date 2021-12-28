@@ -19,6 +19,7 @@
 -export([init/1]).
 
 -include_lib("rabbit_common/include/rabbit.hrl").
+-include_lib("glib/include/log.hrl").
 
 -define(SERVER, ?MODULE).
 
@@ -39,6 +40,7 @@ start_child(Mod, Args) -> start_child(Mod, Mod, Args).
 -spec start_child(atom(), atom(), [any()]) -> 'ok'.
 
 start_child(ChildId, Mod, Args) ->
+    % ?LOG2(#{'ChildId' => ChildId, 'Mod' => Mod, 'Args' => Args, pid => self(), pid_info => glib_tool:pid_info(self())}),
     child_reply(supervisor:start_child(
                   ?SERVER,
                   {ChildId, {Mod, start_link, Args},
@@ -47,6 +49,7 @@ start_child(ChildId, Mod, Args) ->
 -spec start_child(atom(), atom(), atom(), [any()]) -> 'ok'.
 
 start_child(ChildId, Mod, Fun, Args) ->
+    % ?LOG2(#{'ChildId' => ChildId, 'Mod' => Mod, 'Fun' => Fun, 'Args' => Args, pid => self(), pid_info => glib_tool:pid_info(self())}),
     child_reply(supervisor:start_child(
                   ?SERVER,
                   {ChildId, {Mod, Fun, Args},
@@ -63,6 +66,7 @@ start_supervisor_child(Mod, Args) -> start_supervisor_child(Mod, Mod, Args).
 -spec start_supervisor_child(atom(), atom(), [any()]) -> 'ok'.
 
 start_supervisor_child(ChildId, Mod, Args) ->
+    % ?LOG2(#{'ChildId' => ChildId, 'Mod' => Mod, 'Args' => Args, pid => self(), pid_info => glib_tool:pid_info(self())}),
     child_reply(supervisor:start_child(
                   ?SERVER,
                   {ChildId, {Mod, start_link, Args},
@@ -86,6 +90,7 @@ start_delayed_restartable_child(M, A) -> start_restartable_child(M, A,  true).
 
 start_restartable_child(Mod, Args, Delay) ->
     Name = list_to_atom(atom_to_list(Mod) ++ "_sup"),
+    % ?LOG2(#{'Name' => Name, 'Mod' => Mod, 'Args' => Args, 'Delay' => Delay, pid => self(), pid_info => glib_tool:pid_info(self())}),
     child_reply(supervisor:start_child(
                   ?SERVER,
                   {Name, {rabbit_restartable_sup, start_link,

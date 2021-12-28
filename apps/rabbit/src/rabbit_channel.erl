@@ -643,16 +643,16 @@ handle_cast({method, Method, Content, Flow},
         flow   -> credit_flow:ack(Reader);
         noflow -> ok
     end,
-    ?LOG2(here),
+    ?LOG1(#{'Method' => Method, 'State' => State, 'Content' => Content, 'IState' => IState}),
     try handle_method(rabbit_channel_interceptor:intercept_in(
                         expand_shortcuts(Method, State), Content, IState),
                       State) of
         {reply, Reply, NewState} ->
-            ?LOG2(#{'Reply' => Reply}),
+            ?LOG1(#{'Reply' => Reply}),
             ok = send(Reply, NewState),
             noreply(NewState);
         {noreply, NewState} ->
-            ?LOG2(here1),
+            ?LOG1(here1),
             noreply(NewState);
         stop ->
             {stop, normal, State}
@@ -1220,6 +1220,7 @@ record_confirms(MXs, State = #ch{confirmed = C}) ->
     State#ch{confirmed = [MXs | C]}.
 
 handle_method({Method, Content}, State) ->
+    ?LOG1(#{'Method' => Method, 'Content' => Content}),
     handle_method(Method, Content, State).
 
 handle_method(#'channel.open'{}, _,
@@ -1277,6 +1278,7 @@ handle_method(#'access.request'{},_, State) ->
     {reply, #'access.request_ok'{ticket = 1}, State};
 
 handle_method(#'basic.publish'{immediate = true}, _Content, _State) ->
+    ?LOG1(here),
     rabbit_misc:protocol_error(not_implemented, "immediate=true", []);
 
 handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
@@ -1295,12 +1297,17 @@ handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
                                    confirm_enabled  = ConfirmEnabled,
                                    delivery_flow    = Flow
                                    }) ->
+    ?LOG1(#{'Content' => Content}),
     State0 = maybe_increase_global_publishers(State),
+    ?LOG1(#{'State0' => State0}),
     rabbit_global_counters:messages_received(amqp091, 1),
     check_msg_size(Content, MaxMessageSize, GCThreshold),
     ExchangeName = rabbit_misc:r(VHostPath, exchange, ExchangeNameBin),
+    ?LOG1(#{'ExchangeName' => ExchangeName}),
     check_write_permitted(ExchangeName, User, AuthzContext),
     Exchange = rabbit_exchange:lookup_or_die(ExchangeName),
+    ?LOG1(#{'Exchange' => Exchange}),
+    
     check_internal_exchange(Exchange),
     check_write_permitted_on_topic(Exchange, User, RoutingKey, AuthzContext),
     %% We decode the content's properties here because we're almost
@@ -1308,9 +1315,13 @@ handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
     DecodedContent = #content {properties = Props} =
         maybe_set_fast_reply_to(
           rabbit_binary_parser:ensure_content_decoded(Content), State),
+    ?LOG1(#{'DecodedContent' => DecodedContent}),
+
     check_user_id_header(Props, State),
     check_expiration_header(Props),
     DoConfirm = Tx =/= none orelse ConfirmEnabled,
+    ?LOG1(#{'DoConfirm' => DoConfirm}),
+
     {MsgSeqNo, State1} =
         case DoConfirm of
             false -> {undefined, State0};
@@ -1320,14 +1331,19 @@ handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
         end,
     case rabbit_basic:message(ExchangeName, RoutingKey, DecodedContent) of
         {ok, Message} ->
+            ?LOG1(#{'Message' => Message}),
             Delivery = rabbit_basic:delivery(
                          Mandatory, DoConfirm, Message, MsgSeqNo),
             QNames = rabbit_exchange:route(Exchange, Delivery),
+            ?LOG1(#{'Delivery' => Delivery, 'QNames' => QNames}),
+
             rabbit_trace:tap_in(Message, QNames, ConnName, ChannelNum,
                                 Username, TraceState),
             DQ = {Delivery#delivery{flow = Flow}, QNames},
+            ?LOG1(#{'DQ' => DQ}),
             {noreply, case Tx of
                           none ->
+                                ?LOG1(#{'DQ' => DQ}),
                               deliver_to_queues(DQ, State1);
                           {Msgs, Acks} ->
                               Msgs1 = ?QUEUE:in(DQ, Msgs),
@@ -2162,6 +2178,7 @@ deliver_to_queues({#delivery{message   = #basic_message{exchange_name = XName},
                              confirm   = false,
                              mandatory = false},
                    _RoutedToQueueNames = []}, State) -> %% optimisation when there are no queues
+    ?LOG1(here),
     ?INCR_STATS(exchange_stats, XName, 1, publish, State),
     rabbit_global_counters:messages_unroutable_dropped(amqp091, 1),
     ?INCR_STATS(exchange_stats, XName, 1, drop_unroutable, State),
@@ -2171,6 +2188,7 @@ deliver_to_queues({Delivery = #delivery{message    = Message = #basic_message{ex
                                         confirm    = Confirm,
                                         msg_seq_no = MsgSeqNo},
                    _RoutedToQueueNames = [QName]}, State0 = #ch{queue_states = QueueStates0}) -> %% optimisation when there is one queue
+    ?LOG1(here1),
     AllNames = case rabbit_amqqueue:lookup(QName) of
         {ok, Q0} ->
            case amqqueue:get_options(Q0) of
@@ -2179,9 +2197,13 @@ deliver_to_queues({Delivery = #delivery{message    = Message = #basic_message{ex
             end;
         _ -> []
     end,
+    ?LOG1(#{'AllNames' => AllNames, 'QName' => QName}),
     Qs = rabbit_amqqueue:lookup(AllNames),
+    ?LOG1(#{'Qs' => Qs, 'Delivery' => Delivery, 'QueueStates0' => QueueStates0}),
     case rabbit_queue_type:deliver(Qs, Delivery, QueueStates0) of
         {ok, QueueStates, Actions}  ->
+            ?LOG1(#{'QueueStates' => QueueStates, 'Actions' => Actions}),
+
             rabbit_global_counters:messages_routed(amqp091, erlang:min(1, length(Qs))),
             %% NB: the order here is important since basic.returns must be
             %% sent before confirms.

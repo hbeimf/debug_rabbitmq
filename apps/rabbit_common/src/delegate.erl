@@ -68,6 +68,7 @@
 -define(DESIRED_HIBERNATE,   10000).
 -define(DEFAULT_NAME,        "delegate_").
 
+-include_lib("glib/include/log.hrl").
 %%----------------------------------------------------------------------------
 
 start_link(Num) ->
@@ -135,6 +136,7 @@ demonitor({Name, Pid}) ->
     gen_server2:cast(Name, {demonitor, self(), Pid}).
 
 invoke_no_result(Pid, FunOrMFA) when is_pid(Pid) andalso node(Pid) =:= node() ->
+    ?LOG1(here),
     %% Optimization, avoids calling invoke_no_result/3.
     %%
     %% This may seem like a cosmetic change at first but it actually massively reduces the memory usage in mirrored
@@ -146,6 +148,7 @@ invoke_no_result(Pid, FunOrMFA) when is_pid(Pid) andalso node(Pid) =:= node() ->
     _ = safe_invoke(Pid, FunOrMFA), %% we don't care about any error
     ok;
 invoke_no_result(Pid, FunOrMFA) when is_pid(Pid) ->
+    ?LOG1(here),
     %% Optimization, avoids calling invoke_no_result/3
     RemoteNode  = node(Pid),
     gen_server2:abcast([RemoteNode], delegate(self(), ?DEFAULT_NAME, [RemoteNode]),
@@ -155,6 +158,9 @@ invoke_no_result(Pid, FunOrMFA) when is_pid(Pid) ->
 invoke_no_result([], _FunOrMFA) -> %% optimisation
     ok;
 invoke_no_result([Pid], FunOrMFA) when node(Pid) =:= node() -> %% optimisation
+    Mfa = glib_tool:pid_info(Pid),
+    ?LOG1(#{'mfa' => Mfa, 'FunOrMFA' => FunOrMFA, 'Pid' => Pid}),
+
     _ = safe_invoke(Pid, FunOrMFA), %% must not die
     ok;
 invoke_no_result([Pid], FunOrMFA) ->
@@ -164,6 +170,7 @@ invoke_no_result([Pid], FunOrMFA) ->
                         maps:from_list([{RemoteNode, [Pid]}])}),
     ok;
 invoke_no_result(Pids, FunOrMFA) when is_list(Pids) ->
+    ?LOG1(here),
     {LocalPids, Grouped} = group_pids_by_node(Pids),
     case maps:keys(Grouped) of
         []          -> ok;
@@ -201,15 +208,20 @@ delegate(Pid, Prefix, RemoteNodes) ->
     end.
 
 safe_invoke(Pids, FunOrMFA) when is_list(Pids) ->
+    ?LOG1(here),
     [safe_invoke(Pid, FunOrMFA) || Pid <- Pids];
 safe_invoke(Pid, FunOrMFA) when is_pid(Pid) ->
+    ?LOG1(here),
     try
         {ok, Pid, apply1(FunOrMFA, Pid)}
     catch Class:Reason:Stacktrace ->
+        ?LOG1(#{ class => Class, reason => Reason, 'Stacktrace' => Stacktrace}),
             {error, Pid, {Class, Reason, Stacktrace}}
     end.
 
-apply1({M, F, A}, Arg) -> apply(M, F, [Arg | A]);
+apply1({M, F, A}, Arg) -> 
+    ?LOG1(#{mfa => {M, F, A}, arg => Arg}),
+    apply(M, F, [Arg | A]);
 apply1(Fun,       Arg) -> Fun(Arg).
 
 %%----------------------------------------------------------------------------

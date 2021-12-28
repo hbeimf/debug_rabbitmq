@@ -990,7 +990,7 @@ handle_frame(Type, 0, Payload,
 handle_frame(Type, Channel, Payload,
              State = #v1{connection = #connection{protocol = Protocol}})
   when ?IS_RUNNING(State) ->
-    ?LOG2({Type, Channel, Payload, Protocol}),
+    ?LOG1({Type, Channel, Payload, Protocol}),
     case rabbit_command_assembler:analyze_frame(Type, Payload, Protocol) of
         error     -> frame_error(unknown_frame, Type, Channel, Payload, State);
         heartbeat -> unexpected_frame(Type, Channel, Payload, State);
@@ -1004,7 +1004,7 @@ handle_frame(Type, Channel, Payload, State) ->
     unexpected_frame(Type, Channel, Payload, State).
 
 process_frame(Frame, Channel, State) ->
-    ?LOG2(#{'Frame' => Frame, 'Channel' => Channel}),
+    ?LOG1(#{'Frame' => Frame, 'Channel' => Channel}),
 
     ChKey = {channel, Channel},
     case (case get(ChKey) of
@@ -1016,21 +1016,21 @@ process_frame(Frame, Channel, State) ->
         {ok, {ChPid, AState}, State1} ->
             case rabbit_command_assembler:process(Frame, AState) of
                 {ok, NewAState} ->
-                    ?LOG2(#{'NewAState' => NewAState, 'Channel' => Channel}),
+                    ?LOG1(#{'NewAState' => NewAState, 'Channel' => Channel}),
                     put(ChKey, {ChPid, NewAState}),
                     post_process_frame(Frame, ChPid, State1);
                 {ok, Method, NewAState} ->
-                    ?LOG2(#{'Method' => Method, 'NewAState' => NewAState}),
+                    ?LOG1(#{'Method' => Method, 'NewAState' => NewAState}),
                     rabbit_channel:do(ChPid, Method),
                     put(ChKey, {ChPid, NewAState}),
                     post_process_frame(Frame, ChPid, State1);
                 {ok, Method, Content, NewAState} ->
-                    ?LOG2(#{'Frame' => Frame, 'Channel' => Channel}),
+                    ?LOG1(#{'Frame' => Frame, 'Method' => Method, 'Content' => Content}),
                     rabbit_channel:do_flow(ChPid, Method, Content),
                     put(ChKey, {ChPid, NewAState}),
                     post_process_frame(Frame, ChPid, control_throttle(State1));
                 {error, Reason} ->
-                    ?LOG2(#{'Frame' => Frame, 'Channel' => Channel}),
+                    ?LOG1(#{'Frame' => Frame, 'Channel' => Channel}),
                     handle_exception(State1, Channel, Reason)
             end
     end.
@@ -1044,6 +1044,7 @@ post_process_frame({method, 'channel.close_ok', _}, ChPid, State) ->
 post_process_frame({content_header, _, _, _, _}, _ChPid, State) ->
     publish_received(State);
 post_process_frame({content_body, _}, _ChPid, State) ->
+    ?LOG1(#{'post_process_frame' => publish_received}),
     publish_received(State);
 post_process_frame(_Frame, _ChPid, State) ->
     State.
@@ -1820,6 +1821,7 @@ maybe_send_unblocked(State = #v1{throttle = Throttle}) ->
 maybe_send_blocked_or_unblocked(State = #v1{throttle = Throttle}) ->
     case should_send_blocked(Throttle) of
         true ->
+            ?LOG1(here),
             ok = send_blocked(State, blocked_by_message(Throttle)),
             State#v1{throttle =
                 Throttle#throttle{connection_blocked_message_sent = true}};
@@ -1830,6 +1832,7 @@ publish_received(State = #v1{throttle = Throttle}) ->
     case has_reasons_to_block(Throttle) of
       false -> State;
       true  ->
+        ?LOG1(#{'publish_received' => publish_received}),
         Throttle1 = Throttle#throttle{should_block = true},
         maybe_block(State#v1{throttle = Throttle1})
     end.

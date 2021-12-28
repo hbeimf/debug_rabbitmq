@@ -9,13 +9,17 @@
 
 -export([run_boot_steps/0, run_boot_steps/1, run_cleanup_steps/1]).
 -export([find_steps/0, find_steps/1]).
+-include_lib("glib/include/log.hrl").
+-include_lib("sys_log/include/write_log.hrl").
 
 run_boot_steps() ->
     run_boot_steps(loaded_applications()).
 
 run_boot_steps(Apps) ->
+    ?LOG2(Apps),
     [begin
       rabbit_log:info("Running boot step ~s defined by app ~s", [Step, App]),
+    %   ?LOG2({App, Step, Attrs}),
       ok = run_step(Attrs, mfa)
     end || {App, Step, Attrs} <- find_steps(Apps)],
     ok.
@@ -38,6 +42,10 @@ run_step(Attributes, AttributeName) ->
     [begin
         rabbit_log:debug("Applying MFA: M = ~s, F = ~s, A = ~p",
                         [M, F, A]),
+
+        % ?LOG2({M, F, A}),
+        % Log = lists:concat([glib:to_str(M), "__", glib:to_str(F)]),
+        % ?WRITE_LOG(Log, #{m => M, f => F, a => A}),
         case apply(M,F,A) of
             ok              ->
                 rabbit_log:debug("Finished MFA: M = ~s, F = ~s, A = ~p",

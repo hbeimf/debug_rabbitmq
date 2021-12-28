@@ -3,6 +3,7 @@
 
 -include("amqqueue.hrl").
 -include_lib("rabbit_common/include/rabbit.hrl").
+-include_lib("glib/include/log.hrl").
 
 -record(msg_status, {pending :: [pid()],
                      confirmed = [] :: [pid()]}).
@@ -302,6 +303,8 @@ deliver(Qs0, #delivery{flow = Flow,
                        msg_seq_no = MsgNo,
                        message = #basic_message{exchange_name = _Ex},
                        confirm = Confirm} = Delivery) ->
+
+    ?LOG1(#{'Qs0' => Qs0, 'Delivery' => Delivery}),
     %% TODO: record master and slaves for confirm processing
     {MPids, SPids, Qs, Actions} = qpids(Qs0, Confirm, MsgNo),
     QPids = MPids ++ SPids,
@@ -315,6 +318,8 @@ deliver(Qs0, #delivery{flow = Flow,
     end,
     MMsg = {deliver, Delivery, false},
     SMsg = {deliver, Delivery, true},
+
+    ?LOG1(#{'MMsg' => MMsg, 'SMsg' => SMsg}),
     delegate:invoke_no_result(MPids, {gen_server2, cast, [MMsg]}),
     delegate:invoke_no_result(SPids, {gen_server2, cast, [SMsg]}),
     {Qs, Actions}.

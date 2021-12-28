@@ -77,7 +77,7 @@ init() ->
             init_with_lock();
         false ->
             NodeType = node_type(),
-            ?LOG(NodeType),
+            ?LOG2(NodeType),  % disc
             init_db_and_upgrade(cluster_nodes(all), NodeType,
                                 NodeType =:= ram, _Retry = true),
             rabbit_peer_discovery:maybe_init(),
@@ -591,7 +591,7 @@ init_db_unchecked(ClusterNodes, NodeType) ->
     init_db(ClusterNodes, NodeType, false).
 
 init_db_and_upgrade(ClusterNodes, NodeType, CheckOtherNodes, Retry) ->
-    ?LOG({ClusterNodes, NodeType, CheckOtherNodes, Retry}),
+    ?LOG2({ClusterNodes, NodeType, CheckOtherNodes, Retry}),
     ok = init_db(ClusterNodes, NodeType, CheckOtherNodes),
     ok = case rabbit_upgrade:maybe_upgrade_local() of
              ok                    -> ok;
@@ -838,7 +838,7 @@ create_schema() ->
     start_mnesia(),
     
     rabbit_log:debug("Will create schema database tables"),
-    ?LOG(xx),
+    ?LOG2(xx),
     ok = rabbit_table:create(),
     rabbit_log:debug("Created schema database tables successfully"),
     rabbit_log:debug("Will check schema database integrity..."),

@@ -43,7 +43,7 @@ create() ->
 create(TableName, TableDefinition) ->
     TableDefinition1 = proplists:delete(match, TableDefinition),
     rabbit_log:debug("Will create a schema database table '~s'", [TableName]),
-    ?LOG({TableName, TableDefinition1}),
+    ?LOG2({TableName, TableDefinition1}),
     case mnesia:create_table(TableName, TableDefinition1) of
         {atomic, ok}                              -> ok;
         {aborted,{already_exists, TableName}}     -> ok;
