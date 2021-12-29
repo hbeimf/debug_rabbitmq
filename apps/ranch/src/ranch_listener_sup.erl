@@ -49,3 +49,18 @@ init({Ref, Transport, Protocol, Logger}) ->
 	],
 	?LOG(ChildSpecs),
 	{ok, {#{strategy => rest_for_one}, ChildSpecs}}.
+
+% ==========log begin========{ranch_listener_sup,50}==============
+% [#{id => ranch_conns_sup_sup,
+% 	start =>
+% 		{ranch_conns_sup_sup,start_link,
+% 							[{acceptor,{0,0,0,0,0,0,0,0},5672},
+% 								ranch_tcp,rabbit_connection_sup,logger]},
+% 	type => supervisor},
+% 	#{id => ranch_acceptors_sup,
+% 	start =>
+% 		{ranch_acceptors_sup,start_link,
+% 							[{acceptor,{0,0,0,0,0,0,0,0},5672},
+% 								ranch_tcp,logger]},
+% 	type => supervisor}]
+	

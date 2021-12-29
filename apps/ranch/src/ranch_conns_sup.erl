@@ -116,7 +116,10 @@ init(Parent, Ref, Id, Transport, TransOpts, Protocol, Logger) ->
 	ProtoOpts = ranch_server:get_protocol_options(Ref),
 	StatsCounters = ranch_server:get_stats_counters(Ref),
 	ok = proc_lib:init_ack(Parent, {ok, self()}),
-	?LOG({Protocol, Transport}),
+	% ?LOG1({Protocol, Transport}),
+	% ==========log begin========{ranch_conns_sup,119}==============
+	% {rabbit_connection_sup,ranch_tcp}
+
 	loop(#state{parent=Parent, ref=Ref, id=Id, conn_type=ConnType,
 		shutdown=Shutdown, transport=Transport, protocol=Protocol,
 		opts=ProtoOpts, stats_counters_ref=StatsCounters,
@@ -129,12 +132,14 @@ loop(State=#state{parent=Parent, ref=Ref, id=Id, conn_type=ConnType,
 		alarms=Alarms, max_conns=MaxConns, logger=Logger}, CurConns, NbChildren, Sleepers) ->
 	receive
 		{?MODULE, start_protocol, To, Socket} ->
+			% rabbit_connection_sup:start_link
 			try Protocol:start_link(Ref, Transport, Opts) of
 				{ok, Pid} ->
 					inc_accept(StatsCounters, Id, 1),
 					handshake(State, CurConns, NbChildren, Sleepers, To, Socket, Pid, Pid);
 				{ok, SupPid, ProtocolPid} when ConnType =:= supervisor ->
 					inc_accept(StatsCounters, Id, 1),
+					% 通过握手将　Socket　传给　rabbit_reader
 					handshake(State, CurConns, NbChildren, Sleepers, To, Socket, SupPid, ProtocolPid);
 				Ret ->
 					To ! self(),

@@ -18,6 +18,7 @@
 
 -export([start_link/3]).
 -export([init/1]).
+-include_lib("glib/include/log.hrl").
 
 -spec start_link(ranch:ref(), module(), module())
 	-> {ok, pid()}.
@@ -37,6 +38,7 @@ init([Ref, Transport, Logger]) ->
 		LSockets1 ->
 			LSockets1
 	end,
+	% ?LOG1(LSockets),
 	Procs = [begin
 		LSocketId = (AcceptorId rem NumListenSockets) + 1,
 		{_, LSocket} = lists:keyfind(LSocketId, 1, LSockets),
@@ -46,6 +48,16 @@ init([Ref, Transport, Logger]) ->
 			shutdown => brutal_kill
 		}
 	end || AcceptorId <- lists:seq(1, NumAcceptors)],
+	% ?LOG1(Procs),
+	%% 启动　１０　个　ranch_acceptor
+
+	% #{id => {acceptor,<0.3212.0>,10},
+	% shutdown => brutal_kill,
+	% start =>
+	% 	{ranch_acceptor,start_link,
+	% 					[{acceptor,{0,0,0,0,0,0,0,0},5672},
+	% 						10,#Port<0.493>,ranch_tcp,logger]}}]
+ 
 	{ok, {#{intensity => 1 + ceil(math:log2(NumAcceptors))}, Procs}}.
 
 -spec start_listen_sockets(any(), pos_integer(), module(), map(), module())
@@ -70,11 +82,13 @@ start_listen_sockets(Ref, NumListenSockets, Transport, TransOpts0, Logger) when 
 
 -spec start_listen_socket(any(), module(), map(), module()) -> inet:socket().
 start_listen_socket(Ref, Transport, TransOpts, Logger) ->
+	% ?LOG1({Transport, TransOpts}),
 	case Transport:listen(TransOpts) of
 		{ok, Socket} ->
 			PostListenCb = maps:get(post_listen_callback, TransOpts, fun (_) -> ok end),
 			case PostListenCb(Socket) of
 				ok ->
+					% ?LOG1(PostListenCb),
 					Socket;
 				{error, Reason} ->
 					listen_error(Ref, Transport, TransOpts, Reason, Logger)

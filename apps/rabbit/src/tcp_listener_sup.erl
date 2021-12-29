@@ -60,7 +60,7 @@ init({IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartup, On
         Transport, RanchListenerOpts,
         ProtoSup, ProtoOpts),
 
-    ?LOG(#{one => RanchChildSpec, two => OurChildSpec}),
+    % ?LOG1(#{one => RanchChildSpec, two => OurChildSpec, pid => self()}),
     {ok, {Flags, [RanchChildSpec, OurChildSpec]}}.
 
 max_conn(infinity, _) ->

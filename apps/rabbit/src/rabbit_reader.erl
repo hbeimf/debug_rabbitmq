@@ -173,6 +173,9 @@ shutdown(Pid, Explanation) ->
 init(Parent, HelperSup, Ref) ->
     ?LOG({Parent, HelperSup, Ref}),
     ?LG_PROCESS_TYPE(reader),
+
+    %% 通过握手后,　从　ranch_conns_sup 那边拿到连接　Sock,
+    %%　之后就可以通过这个句柄在连接上读写数据了,正式进入应用部分　
     {ok, Sock} = rabbit_networking:handshake(Ref,
         application:get_env(rabbit, proxy_protocol, false)),
     Deb = sys:debug_options([]),
@@ -305,7 +308,8 @@ socket_op(Sock, Fun) ->
           no_return().
 
 start_connection(Parent, HelperSup, Deb, Sock) ->
-    ?LOG({Parent, HelperSup, Deb, Sock}),
+    % ?LOG({Parent, HelperSup, Deb, Sock}),
+    %% 要自己处理退出消息,　
     process_flag(trap_exit, true),
     RealSocket = rabbit_net:unwrap_socket(Sock),
     Name = case rabbit_net:connection_string(Sock, inbound) of

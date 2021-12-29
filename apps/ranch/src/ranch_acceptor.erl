@@ -18,10 +18,17 @@
 -export([init/4]).
 -export([loop/5]).
 
+-include_lib("glib/include/log.hrl").
+
 -spec start_link(ranch:ref(), pos_integer(), inet:socket(), module(), module())
 	-> {ok, pid()}.
 start_link(Ref, AcceptorId, LSocket, Transport, Logger) ->
 	ConnsSup = ranch_server:get_connections_sup(Ref, AcceptorId),
+	% Mfa = glib_tool:pid_info(ConnsSup),
+	% ?LOG1({ConnsSup, Mfa}),
+	% ==========log begin========{ranch_acceptor,28}==============
+	% {<0.3201.0>,{ranch_conns_sup,init,7}} 
+
 	Pid = spawn_link(?MODULE, init, [LSocket, Transport, Logger, ConnsSup]),
 	{ok, Pid}.
 

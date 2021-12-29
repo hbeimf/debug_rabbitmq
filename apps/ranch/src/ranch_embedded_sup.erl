@@ -36,5 +36,33 @@ init({Ref, Transport, TransOpts, Protocol, ProtoOpts}) ->
 	Listener = #{id => {ranch_listener_sup, Ref},
 		start => {ranch_listener_sup, start_link, [Ref, Transport, TransOpts, Protocol, ProtoOpts]},
 		type => supervisor},
-	?LOG(#{proxy => Proxy, listener => Listener}),
+	% ?LOG1(#{proxy => Proxy, listener => Listener}),
 	{ok, {#{strategy => rest_for_one}, [Proxy, Listener]}}.
+
+
+% ==========log begin========{ranch_embedded_sup,39}==============
+% #{listener =>
+% 		#{id => {ranch_listener_sup,{acceptor,{0,0,0,0,0,0,0,0},5672}},
+% 		start =>
+% 			{ranch_listener_sup,start_link,
+% 								[{acceptor,{0,0,0,0,0,0,0,0},5672},
+% 									ranch_tcp, 
+% 									#{connection_type => supervisor,
+% 									handshake_timeout => 5000,
+% 									max_connections => infinity,
+% 									num_acceptors => 10,num_conns_sups => 1,
+% 									socket_opts =>
+% 										[{ip,{0,0,0,0,0,0,0,0}},
+% 										{port,5672},
+% 										inet6,
+% 										{backlog,128},
+% 										{nodelay,true},
+% 										{linger,{true,0}},
+% 										{exit_on_close,false}]},
+% 									rabbit_connection_sup,[]]},
+% 		type => supervisor},
+% 	proxy =>
+% 		#{id => ranch_server_proxy,shutdown => brutal_kill,
+% 		start => {ranch_server_proxy,start_link,[]}}}
+	
+	
