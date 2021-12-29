@@ -1031,6 +1031,7 @@ process_frame(Frame, Channel, State) ->
                     put(ChKey, {ChPid, NewAState}),
                     post_process_frame(Frame, ChPid, State1);
                 {ok, Method, NewAState} ->
+                    ?LOG_CHANNEL_METHOD_CALL(#{'Method' => Method}),
                     % ?LOG_FRAME_REQ(#{'Method' => Method, 'NewAState' => NewAState}), 
                     %% channel actor 会处理下面几条 amqp 协议, 这几条是在客户端连接后发的几个指令,
                     %% 具体参考客户端 demo 2021.12.29

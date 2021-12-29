@@ -78,6 +78,12 @@
 
 % ==========********log frame request ******========{rabbit_reader,1003}==============
 % #{'Channel' => 1,'Frame' => {method,'channel.open',<<0>>}}
+% -define(LOG_CREATE_CHANNEL(X), io:format("==========log create channel ========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_CREATE_CHANNEL(X), true).
+% rabbit_pub_account_log:pub_test().
+
+-define(LOG_CHANNEL_METHOD_CALL(X), io:format("==========log channel method call ========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+% -define(LOG_CHANNEL_METHOD_CALL(X), true).
 
 % ==========********log frame request ******========{rabbit_reader,1003}==============
 % #{'Channel' => 1,

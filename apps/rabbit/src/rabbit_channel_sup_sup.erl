@@ -21,6 +21,7 @@
 -include_lib("rabbit_common/include/rabbit.hrl").
 
 %%----------------------------------------------------------------------------
+-include_lib("glib/include/log.hrl").
 
 -spec start_link() -> rabbit_types:ok_pid_or_error().
 
@@ -31,6 +32,8 @@ start_link() ->
           {'ok', pid(), {pid(), any()}}.
 
 start_channel(Pid, Args) ->
+    Mfa = glib_tool:pid_info(Pid),
+    ?LOG_CREATE_CHANNEL(#{'Pid' => Pid, 'Args' => Args, 'Mfa' => Mfa}),
     supervisor2:start_child(Pid, [Args]).
 
 %%----------------------------------------------------------------------------

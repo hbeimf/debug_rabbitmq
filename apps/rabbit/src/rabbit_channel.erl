@@ -45,7 +45,7 @@
 -include_lib("rabbit_common/include/rabbit_misc.hrl").
 
 -include("amqqueue.hrl").
--include_lib("glib/include/log.hrl").
+% -include_lib("glib/include/log.hrl").
 
 -behaviour(gen_server2).
 
@@ -73,6 +73,8 @@
 
 %% Mgmt HTTP API refactor
 -export([handle_method/6]).
+
+-include_lib("glib/include/log.hrl").
 
 -record(conf, {
           %% starting | running | flow | closing
@@ -260,6 +262,7 @@ start_link(Channel, ReaderPid, WriterPid, ConnPid, ConnName, Protocol, User,
 
 do(Pid, Method) ->
     % ?LOG2(#{'Pid' => Pid, 'Method' => Method}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'Method' => Method, 'Pid' => Pid}),
     rabbit_channel_common:do(Pid, Method).
 
 -spec do
@@ -496,6 +499,8 @@ update_user_state(Pid, UserState) when is_pid(Pid) ->
 
 init([Channel, ReaderPid, WriterPid, ConnPid, ConnName, Protocol, User, VHost,
       Capabilities, CollectorPid, LimiterPid, AmqpParams]) ->
+    ?LOG_CREATE_CHANNEL([Channel, ReaderPid, WriterPid, ConnPid, ConnName, Protocol, User, VHost, Capabilities, CollectorPid, LimiterPid, AmqpParams]),
+
     process_flag(trap_exit, true),
     ?LG_PROCESS_TYPE(channel),
     ?store_proc_name({ConnName, Channel}),
@@ -643,16 +648,16 @@ handle_cast({method, Method, Content, Flow},
         flow   -> credit_flow:ack(Reader);
         noflow -> ok
     end,
-    ?LOG1(#{'Method' => Method, 'State' => State, 'Content' => Content, 'IState' => IState}),
-    try handle_method(rabbit_channel_interceptor:intercept_in(
-                        expand_shortcuts(Method, State), Content, IState),
-                      State) of
+    % ?LOG1(#{'Method' => Method, 'State' => State, 'Content' => Content, 'IState' => IState}),
+    Var = rabbit_channel_interceptor:intercept_in( expand_shortcuts(Method, State), Content, IState),
+    ?LOG_CHANNEL_METHOD_CALL(#{'Method' => Method, 'Flow' => Flow, 'Content' => Content, 'Var' => Var}),
+    try handle_method(Var, State) of
         {reply, Reply, NewState} ->
-            ?LOG1(#{'Reply' => Reply}),
+            ?LOG_CHANNEL_METHOD_CALL(#{'Reply' => Reply}),
             ok = send(Reply, NewState),
             noreply(NewState);
         {noreply, NewState} ->
-            ?LOG1(here1),
+            ?LOG_CHANNEL_METHOD_CALL(here1),
             noreply(NewState);
         stop ->
             {stop, normal, State}
@@ -1220,11 +1225,12 @@ record_confirms(MXs, State = #ch{confirmed = C}) ->
     State#ch{confirmed = [MXs | C]}.
 
 handle_method({Method, Content}, State) ->
-    ?LOG1(#{'Method' => Method, 'Content' => Content}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'Method' => Method, 'Content' => Content}),
     handle_method(Method, Content, State).
 
 handle_method(#'channel.open'{}, _,
               State = #ch{cfg = #conf{state = starting} = Cfg}) ->
+    ?LOG_CHANNEL_METHOD_CALL(here_open),
     %% Don't leave "starting" as the state for 5s. TODO is this TRTTD?
     State1 = State#ch{cfg = Cfg#conf{state = running}},
     rabbit_event:if_enabled(State1, #ch.stats_timer,
@@ -2521,7 +2527,7 @@ get_operation_timeout() ->
 
 %% Refactored and exported to allow direct calls from the HTTP API,
 %% avoiding the usage of AMQP 0-9-1 from the management.
-
+% handle_method_6 defined here, handle_method/6
 handle_method(#'exchange.bind'{destination = DestinationNameBin,
                                source      = SourceNameBin,
                                routing_key = RoutingKey,

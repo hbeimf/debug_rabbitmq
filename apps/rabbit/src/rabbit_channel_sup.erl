@@ -24,7 +24,7 @@
 -export([init/1]).
 
 -include_lib("rabbit_common/include/rabbit.hrl").
-
+-include_lib("glib/include/log.hrl").
 %%----------------------------------------------------------------------------
 
 -export_type([start_link_args/0]).
@@ -46,11 +46,19 @@
 
 start_link({tcp, Sock, Channel, FrameMax, ReaderPid, ConnName, Protocol, User,
             VHost, Capabilities, Collector}) ->
+    ?LOG_CREATE_CHANNEL(#{'Args' => {tcp, Sock, Channel, FrameMax, ReaderPid, ConnName, Protocol, User, VHost, Capabilities, Collector}}),
+
+    %% 下面一次启动了两人个 actor
+    %% rabbit_writer:start_link &&  rabbit_limiter:start_link
     {ok, SupPid} = supervisor2:start_link(
                      ?MODULE, {tcp, Sock, Channel, FrameMax,
                                ReaderPid, Protocol, {ConnName, Channel}}),
+
+    %% 取出上面刚刚创建的两人个子进程的 ｐｉｄ
     [LimiterPid] = supervisor2:find_child(SupPid, limiter),
     [WriterPid] = supervisor2:find_child(SupPid, writer),
+    ?LOG_CREATE_CHANNEL(#{'LimiterPid' => LimiterPid, 'mfa' => glib_tool:pid_info(LimiterPid), 'WriterPid' => WriterPid, 'mfa1' => glib_tool:pid_info(WriterPid)}),
+
     {ok, ChannelPid} =
         supervisor2:start_child(
           SupPid,
@@ -59,6 +67,7 @@ start_link({tcp, Sock, Channel, FrameMax, ReaderPid, ConnName, Protocol, User,
                       Protocol, User, VHost, Capabilities, Collector,
                       LimiterPid]},
            intrinsic, ?FAIR_WAIT, worker, [rabbit_channel]}),
+           
     {ok, AState} = rabbit_command_assembler:init(Protocol),
     {ok, SupPid, {ChannelPid, AState}};
 start_link({direct, Channel, ClientChannelPid, ConnPid, ConnName, Protocol,
@@ -80,7 +89,24 @@ start_link({direct, Channel, ClientChannelPid, ConnPid, ConnName, Protocol,
 
 init(Type) ->
     ?LG_PROCESS_TYPE(channel_sup),
-    {ok, {{one_for_all, 0, 1}, child_specs(Type)}}.
+    Child = child_specs(Type),
+    ?LOG_CREATE_CHANNEL(#{'Child' => Child}),
+    {ok, {{one_for_all, 0, 1}, Child}}.
+
+% ==========log create channel ========{rabbit_channel_sup,90}==============
+% #{'Child' =>
+%         [{writer,{rabbit_writer,start_link,
+%                                 [#Port<0.496>,1,131072,
+%                                 rabbit_framing_amqp_0_9_1,<0.3227.0>,
+%                                 {<<"127.0.0.1:52585 -> 127.0.0.1:5672">>,1},
+%                                 true]},
+%                 intrinsic,70000,worker,
+%                 [rabbit_writer]},
+%         {limiter,{rabbit_limiter,start_link,
+%                                 [{<<"127.0.0.1:52585 -> 127.0.0.1:5672">>,1}]},
+%                 transient,70000,worker,
+%                 [rabbit_limiter]}]}
+    
 
 child_specs({tcp, Sock, Channel, FrameMax, ReaderPid, Protocol, Identity}) ->
     [{writer, {rabbit_writer, start_link,

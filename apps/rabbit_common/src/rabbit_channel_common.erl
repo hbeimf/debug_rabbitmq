@@ -15,6 +15,7 @@ do(Pid, Method) ->
     do(Pid, Method, none).
 
 do(Pid, Method, Content) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'Method' => Method, 'Pid' => Pid, 'Content' => Content}),
     gen_server2:cast(Pid, {method, Method, Content, noflow}).
 
 do_flow(Pid, Method, Content) ->
