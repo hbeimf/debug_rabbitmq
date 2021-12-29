@@ -364,7 +364,7 @@ val(Value) ->
 %% - have a local ram copy
 %% - do not have any indices
 dirty_read({Table, Key}) ->
-    ?LOG1({Table, Key}),
+    % ?LOG1({Table, Key}),
     % (rabbit@maomao-VirtualBox)2> ets:lookup(rabbit_user, <<"guest">>).
     % [{internal_user,<<"guest">>,
     %                 <<63,226,4,100,98,173,116,54,44,2,184,158,8,5,40,157,5,16,

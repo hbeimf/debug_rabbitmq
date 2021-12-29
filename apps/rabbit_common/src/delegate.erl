@@ -220,7 +220,7 @@ safe_invoke(Pid, FunOrMFA) when is_pid(Pid) ->
     end.
 
 apply1({M, F, A}, Arg) -> 
-    ?LOG1(#{mfa => {M, F, A}, arg => Arg}),
+    % ?LOG1(#{mfa => {M, F, A}, arg => Arg}),
     apply(M, F, [Arg | A]);
 apply1(Fun,       Arg) -> Fun(Arg).
 

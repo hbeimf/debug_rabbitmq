@@ -171,7 +171,7 @@ shutdown(Pid, Explanation) ->
 -spec init(pid(), pid(), any()) -> no_return().
 
 init(Parent, HelperSup, Ref) ->
-    ?LOG({Parent, HelperSup, Ref}),
+    % ?LOG({Parent, HelperSup, Ref}),
     ?LG_PROCESS_TYPE(reader),
 
     %% 通过握手后,　从　ranch_conns_sup 那边拿到连接　Sock,
@@ -321,7 +321,7 @@ start_connection(Parent, HelperSup, Deb, Sock) ->
                                     exit(normal)
            end,
     {ok, HandshakeTimeout} = application:get_env(rabbit, handshake_timeout),
-    ?LOG({handshake_timeout, HandshakeTimeout}),
+    % ?LOG1({handshake_timeout, Name}),
     InitialFrameMax = application:get_env(rabbit, initial_frame_max, ?FRAME_MIN_SIZE),
     erlang:send_after(HandshakeTimeout, self(), handshake_timeout),
     {PeerHost, PeerPort, Host, Port} =
@@ -465,6 +465,7 @@ log_connection_exception_with_severity(Severity, Fmt, Args) ->
     end.
 
 run({M, F, A}) ->
+    % ?LOG1({M, F, A}),
     try apply(M, F, A)
     catch {become, MFA} -> run(MFA)
     end.
@@ -994,11 +995,13 @@ handle_frame(Type, 0, Payload,
 handle_frame(Type, Channel, Payload,
              State = #v1{connection = #connection{protocol = Protocol}})
   when ?IS_RUNNING(State) ->
-    ?LOG1({Type, Channel, Payload, Protocol}),
+    % ?LOG1({Type, Channel, Payload, Protocol}),
     case rabbit_command_assembler:analyze_frame(Type, Payload, Protocol) of
         error     -> frame_error(unknown_frame, Type, Channel, Payload, State);
         heartbeat -> unexpected_frame(Type, Channel, Payload, State);
-        Frame     -> process_frame(Frame, Channel, State)
+        Frame     -> 
+            ?LOG_FRAME_REQ(#{'Frame' => Frame, 'Channel' => Channel}),
+            process_frame(Frame, Channel, State)
     end;
 handle_frame(_Type, _Channel, _Payload, State) when ?IS_STOPPING(State) ->
     % ?LOG1(here),
@@ -1008,33 +1011,44 @@ handle_frame(Type, Channel, Payload, State) ->
     unexpected_frame(Type, Channel, Payload, State).
 
 process_frame(Frame, Channel, State) ->
-    ?LOG1(#{'Frame' => Frame, 'Channel' => Channel}),
-
+    %%　创建　channel 并处理  channel.open &&　queue.declare　&&　exchange.declare　&&　queue.bind
+    %%  basic.publish  相关的业务逻辑.
     ChKey = {channel, Channel},
     case (case get(ChKey) of
-              undefined -> create_channel(Channel, State);
+              undefined -> create_channel(Channel, State); 
+               %% 创建 channel相关的一系列 actor 在上面这句这里触发, 只会触发一次,之后到字典里取
               Other     -> {ok, Other, State}
           end) of
         {error, Error} ->
             handle_exception(State, Channel, Error);
         {ok, {ChPid, AState}, State1} ->
-            case rabbit_command_assembler:process(Frame, AState) of
+            Var = rabbit_command_assembler:process(Frame, AState),
+            % ?LOG_FRAME_REQ(#{'var' => Var}),
+            case Var of
                 {ok, NewAState} ->
-                    ?LOG1(#{'NewAState' => NewAState, 'Channel' => Channel}),
+                    % ?LOG_FRAME_REQ(#{'NewAState' => NewAState, 'Channel' => Channel}), 
+                    %% basic.publish &&
                     put(ChKey, {ChPid, NewAState}),
                     post_process_frame(Frame, ChPid, State1);
                 {ok, Method, NewAState} ->
-                    ?LOG1(#{'Method' => Method, 'NewAState' => NewAState}),
+                    % ?LOG_FRAME_REQ(#{'Method' => Method, 'NewAState' => NewAState}), 
+                    %% channel actor 会处理下面几条 amqp 协议, 这几条是在客户端连接后发的几个指令,
+                    %% 具体参考客户端 demo 2021.12.29
+                    % channel.open 
+                    % queue.declare　
+                    % exchange.declare　
+                    % queue.bind
                     rabbit_channel:do(ChPid, Method),
                     put(ChKey, {ChPid, NewAState}),
                     post_process_frame(Frame, ChPid, State1);
                 {ok, Method, Content, NewAState} ->
-                    ?LOG1(#{'Frame' => Frame, 'Method' => Method, 'Content' => Content}),
+                    % ?LOG_FRAME_REQ(#{'Method' => Method, 'Content' => Content}), 
+                    %% basic.publish &&
                     rabbit_channel:do_flow(ChPid, Method, Content),
                     put(ChKey, {ChPid, NewAState}),
                     post_process_frame(Frame, ChPid, control_throttle(State1));
                 {error, Reason} ->
-                    ?LOG1(#{'Frame' => Frame, 'Channel' => Channel}),
+                    % ?LOG_FRAME_REQ(#{'Channel' => Channel}),
                     handle_exception(State1, Channel, Reason)
             end
     end.
@@ -1048,7 +1062,7 @@ post_process_frame({method, 'channel.close_ok', _}, ChPid, State) ->
 post_process_frame({content_header, _, _, _, _}, _ChPid, State) ->
     publish_received(State);
 post_process_frame({content_body, _}, _ChPid, State) ->
-    ?LOG1(#{'post_process_frame' => publish_received}),
+    % ?LOG1(#{'post_process_frame' => publish_received}),
     publish_received(State);
 post_process_frame(_Frame, _ChPid, State) ->
     State.
@@ -1209,9 +1223,10 @@ handle_method0(MethodName, FieldsBin,
     try
         %% 根据上一步解析出来的　{MethodName}　在此处解析出调用这个方法要用到的字段信息
         %%　其中具体的协议选择:　{Protocol}　=　'rabbit_framing_amqp_0_9_1',　说不定以后协议更新后还会有新的解析版本
-        ?LOG1(#{'Protocol' => Protocol, 'MethodName' => MethodName, 'FieldsBin' => FieldsBin}),
-        handle_method0(Protocol:decode_method_fields(MethodName, FieldsBin),
-                       State)
+        
+        P1 = Protocol:decode_method_fields(MethodName, FieldsBin),
+        ?LOG_REQ(#{'Protocol' => Protocol, 'MethodName' => MethodName, 'P1' => P1}),
+        handle_method0(P1, State)
     catch throw:{inet_error, E} when E =:= closed; E =:= enotconn ->
             maybe_emit_stats(State),
             throw({connection_closed_abruptly, State});
@@ -1228,14 +1243,17 @@ handle_method0(#'connection.start_ok'{mechanism = Mechanism,
                             connection       = Connection0,
                             sock             = Sock}) ->
 
-    % ?LOG1(#{'Mechanism' => Mechanism, 'Response' => Response, 'ClientProperties' => ClientProperties, 'Connection0' => Connection0, 'Sock' => Sock}),
-    ?LOG1(#{'Response' => Response}),
+    %% 一个连接打开的第一个请求,　　Response　里放的是进行账号验证相关的数据,
+    %% 如果验失败, 客户端会收到一个权限错误的提示, 并断开连接, 
+    ?LOG_START_OK(#{'Response' => Response}),
     AuthMechanism = auth_mechanism_to_module(Mechanism, Sock),
+    ?LOG_START_OK(#{'AuthMechanism' => AuthMechanism}),
     Capabilities =
         case rabbit_misc:table_lookup(ClientProperties, <<"capabilities">>) of
             {table, Capabilities1} -> Capabilities1;
             _                      -> []
         end,
+    ?LOG_START_OK(#{'Capabilities' => Capabilities}),
     Connection1 = Connection0#connection{
                     client_properties = ClientProperties,
                     capabilities      = Capabilities,
@@ -1244,6 +1262,7 @@ handle_method0(#'connection.start_ok'{mechanism = Mechanism,
     Connection2 = augment_connection_log_name(Connection1),
     State = State0#v1{connection_state = securing,
                       connection       = Connection2},
+    ?LOG_START_OK(#{'Connection1' => Connection1, 'Connection2' => Connection2, 'State' => State}),
     % adding client properties to process dictionary to send them later
     % in the connection_closed event
     put(client_properties, ClientProperties),
@@ -1255,8 +1274,13 @@ handle_method0(#'connection.start_ok'{mechanism = Mechanism,
     end,
 
     %% 从 Response 里解析密码并从rabbit_user表中检查密码的正确必
-    %%　Response　
-    auth_phase(Response, State);
+    %% 经　auth_phase　函数调用后,　账号密码这些都是正确的情况下,　返回的状态里多了下面的账号相关的信息,　
+    % {user,<<"guest">>, [administrator], [{rabbit_auth_backend_internal,none}]},
+    %% connection_state　由　securing  =>　tuning　
+
+    ReplyForLog = auth_phase(Response, State),
+    ?LOG_START_OK(#{'ReplyForLog' => ReplyForLog}),
+    ReplyForLog;
 
 handle_method0(#'connection.secure_ok'{response = Response},
                State = #v1{connection_state = securing}) ->
@@ -1275,6 +1299,8 @@ handle_method0(#'connection.tune_ok'{frame_max   = FrameMax,
            channel_max, ?CHANNEL_MIN,    ChannelMax),
     {ok, Collector} = rabbit_connection_helper_sup:start_queue_collector(
                         SupPid, Connection#connection.name),
+    ?LOG_TUNE_OK(#{'Collector' => Collector, 'SupPid' => SupPid, name => Connection#connection.name, 'Sock' => Sock, pid => self()}),
+
     Frame = rabbit_binary_generator:build_heartbeat_frame(),
     Parent = self(),
     SendFun =
@@ -1290,9 +1316,13 @@ handle_method0(#'connection.tune_ok'{frame_max   = FrameMax,
                 ok
         end,
     ReceiveFun = fun() -> Parent ! heartbeat_timeout end,
+    %% 启动心跳,
     Heartbeater = rabbit_heartbeat:start(
                     SupPid, Sock, Connection#connection.name,
                     ClientHeartbeat, SendFun, ClientHeartbeat, ReceiveFun),
+    ?LOG_TUNE_OK(#{'Heartbeater' => Heartbeater, 'Sock' => Sock, pid => self()}),
+    
+    %% connection_state = opening 每一步的状态都是验证上一步已经完成,　因为这里是硬编码匹配.
     State#v1{connection_state = opening,
              connection = Connection#connection{
                             frame_max   = FrameMax,
@@ -1311,12 +1341,14 @@ handle_method0(#'connection.open'{virtual_host = VHost},
                            sock             = Sock,
                            throttle         = Throttle}) ->
 
-    ?LOG1(#{'Username' => Username}),
+    ?LOG_OPEN(#{'Username' => Username}),
+    %% 一些权限检查
     ok = is_over_vhost_connection_limit(VHost, User),
     ok = is_over_user_connection_limit(User),
     ok = rabbit_access_control:check_vhost_access(User, VHost, {socket, Sock}, #{}),
     ok = is_vhost_alive(VHost, User),
     NewConnection = Connection#connection{vhost = VHost},
+    %% 给客户端返回信息
     ok = send_on_channel0(Sock, #'connection.open_ok'{}, Protocol),
 
     Alarms = rabbit_alarm:register(self(), {?MODULE, conserve_resources, []}),
@@ -1325,6 +1357,7 @@ handle_method0(#'connection.open'{virtual_host = VHost},
 
     {ok, ChannelSupSupPid} =
         rabbit_connection_helper_sup:start_channel_sup_sup(SupPid),
+    %% 更新　connection_state    = running　等状态信息
     State1 = control_throttle(
                State#v1{connection_state    = running,
                         connection          = NewConnection,

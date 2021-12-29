@@ -138,6 +138,7 @@ loop(State=#state{parent=Parent, ref=Ref, id=Id, conn_type=ConnType,
 					inc_accept(StatsCounters, Id, 1),
 					handshake(State, CurConns, NbChildren, Sleepers, To, Socket, Pid, Pid);
 				{ok, SupPid, ProtocolPid} when ConnType =:= supervisor ->
+					% ?LOG1({SupPid, ProtocolPid}),
 					inc_accept(StatsCounters, Id, 1),
 					% 通过握手将　Socket　传给　rabbit_reader
 					handshake(State, CurConns, NbChildren, Sleepers, To, Socket, SupPid, ProtocolPid);

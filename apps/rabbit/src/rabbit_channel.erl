@@ -259,7 +259,7 @@ start_link(Channel, ReaderPid, WriterPid, ConnPid, ConnName, Protocol, User,
 -spec do(pid(), rabbit_framing:amqp_method_record()) -> 'ok'.
 
 do(Pid, Method) ->
-    ?LOG2(#{'Pid' => Pid, 'Method' => Method}),
+    % ?LOG2(#{'Pid' => Pid, 'Method' => Method}),
     rabbit_channel_common:do(Pid, Method).
 
 -spec do
