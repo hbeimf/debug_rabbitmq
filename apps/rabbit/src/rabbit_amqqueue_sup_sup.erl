@@ -16,6 +16,7 @@
 -export([init/1]).
 
 -include_lib("rabbit_common/include/rabbit.hrl").
+-include_lib("glib/include/log.hrl").
 
 -define(SERVER, ?MODULE).
 
@@ -30,10 +31,18 @@ start_link() ->
         (node(), amqqueue:amqqueue(), 'declare' | 'recovery' | 'slave') ->
             pid().
 
+%% 这里是否是创建队列的地方,反正跟到这里来了 ,再往后面跟跟看, 
 start_queue_process(Node, Q, StartMode) ->
     #resource{virtual_host = VHost} = amqqueue:get_name(Q),
     {ok, Sup} = find_for_vhost(VHost, Node),
     {ok, _SupPid, QPid} = supervisor2:start_child(Sup, [Q, StartMode]),
+
+    Mfa = glib_tool:pid_info(Sup),
+    Mfa1 = glib_tool:pid_info(QPid),
+    
+    ?LOG_CHANNEL_METHOD_CALL(#{'Q' => Q, 'Node' => Node, 'StartMode' => StartMode, 'Sup' => Sup, 'QPid' => QPid, 'Mfa' => Mfa, 'Mfa1' => Mfa1}),
+    %% 这个　QPid　就是在分布式表里的那个　ｐｉｄ　,　发布消息的时候就分　ｃａｓｔ到这个ａｃｔｏｒ里去,　晚点再跟跟发布消息,
+    %% **　{rabbit_amqqueue_process}  是队列　QPid　所在的模块,
     QPid.
 
 init([]) ->

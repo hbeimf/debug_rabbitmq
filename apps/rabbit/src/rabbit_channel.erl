@@ -1284,7 +1284,7 @@ handle_method(#'access.request'{},_, State) ->
     {reply, #'access.request_ok'{ticket = 1}, State};
 
 handle_method(#'basic.publish'{immediate = true}, _Content, _State) ->
-    ?LOG1(here),
+    ?LOG_CHANNEL_METHOD_CALL(here),
     rabbit_misc:protocol_error(not_implemented, "immediate=true", []);
 
 handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
@@ -1303,16 +1303,16 @@ handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
                                    confirm_enabled  = ConfirmEnabled,
                                    delivery_flow    = Flow
                                    }) ->
-    ?LOG1(#{'Content' => Content}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'Content' => Content}),
     State0 = maybe_increase_global_publishers(State),
-    ?LOG1(#{'State0' => State0}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'State0' => State0}),
     rabbit_global_counters:messages_received(amqp091, 1),
     check_msg_size(Content, MaxMessageSize, GCThreshold),
     ExchangeName = rabbit_misc:r(VHostPath, exchange, ExchangeNameBin),
-    ?LOG1(#{'ExchangeName' => ExchangeName}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'ExchangeName' => ExchangeName}),
     check_write_permitted(ExchangeName, User, AuthzContext),
     Exchange = rabbit_exchange:lookup_or_die(ExchangeName),
-    ?LOG1(#{'Exchange' => Exchange}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'Exchange' => Exchange}),
     
     check_internal_exchange(Exchange),
     check_write_permitted_on_topic(Exchange, User, RoutingKey, AuthzContext),
@@ -1321,12 +1321,12 @@ handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
     DecodedContent = #content {properties = Props} =
         maybe_set_fast_reply_to(
           rabbit_binary_parser:ensure_content_decoded(Content), State),
-    ?LOG1(#{'DecodedContent' => DecodedContent}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'DecodedContent' => DecodedContent}),
 
     check_user_id_header(Props, State),
     check_expiration_header(Props),
     DoConfirm = Tx =/= none orelse ConfirmEnabled,
-    ?LOG1(#{'DoConfirm' => DoConfirm}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'DoConfirm' => DoConfirm}),
 
     {MsgSeqNo, State1} =
         case DoConfirm of
@@ -1337,19 +1337,19 @@ handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
         end,
     case rabbit_basic:message(ExchangeName, RoutingKey, DecodedContent) of
         {ok, Message} ->
-            ?LOG1(#{'Message' => Message}),
+            ?LOG_CHANNEL_METHOD_CALL(#{'Message' => Message}),
             Delivery = rabbit_basic:delivery(
                          Mandatory, DoConfirm, Message, MsgSeqNo),
             QNames = rabbit_exchange:route(Exchange, Delivery),
-            ?LOG1(#{'Delivery' => Delivery, 'QNames' => QNames}),
+            ?LOG_CHANNEL_METHOD_CALL(#{'Delivery' => Delivery, 'QNames' => QNames}),
 
             rabbit_trace:tap_in(Message, QNames, ConnName, ChannelNum,
                                 Username, TraceState),
             DQ = {Delivery#delivery{flow = Flow}, QNames},
-            ?LOG1(#{'DQ' => DQ}),
+            ?LOG_CHANNEL_METHOD_CALL(#{'DQ' => DQ}),
             {noreply, case Tx of
                           none ->
-                                ?LOG1(#{'DQ' => DQ}),
+                                ?LOG_CHANNEL_METHOD_CALL(#{'DQ' => DQ}),
                               deliver_to_queues(DQ, State1);
                           {Msgs, Acks} ->
                               Msgs1 = ?QUEUE:in(DQ, Msgs),
@@ -1687,6 +1687,7 @@ handle_method(#'queue.declare'{nowait = NoWait} = Method,
                                          queue_collector_pid = CollectorPid,
                                          user = User}}) ->
     ?LOG_CHANNEL_METHOD_CALL(#{params => {Method, ConnPid, AuthzContext, CollectorPid, VHostPath, User}}),
+    %% 这里附近的逻辑会在分布式表里插入一条队列的记录,跟一下,看里面的ｐｉｄ是由哪个模块创建的,后面发布消息的时候会用到, 
     {ok, QueueName, MessageCount, ConsumerCount} =
         handle_method(Method, ConnPid, AuthzContext, CollectorPid, VHostPath, User),
     ?LOG_CHANNEL_METHOD_CALL(#{'QueueName' => QueueName, 'MessageCount' => MessageCount, 'ConsumerCount' => ConsumerCount}),    
@@ -2191,7 +2192,7 @@ deliver_to_queues({#delivery{message   = #basic_message{exchange_name = XName},
                              confirm   = false,
                              mandatory = false},
                    _RoutedToQueueNames = []}, State) -> %% optimisation when there are no queues
-    ?LOG1(here),
+    ?LOG_CHANNEL_METHOD_CALL(here),
     ?INCR_STATS(exchange_stats, XName, 1, publish, State),
     rabbit_global_counters:messages_unroutable_dropped(amqp091, 1),
     ?INCR_STATS(exchange_stats, XName, 1, drop_unroutable, State),
@@ -2201,7 +2202,7 @@ deliver_to_queues({Delivery = #delivery{message    = Message = #basic_message{ex
                                         confirm    = Confirm,
                                         msg_seq_no = MsgSeqNo},
                    _RoutedToQueueNames = [QName]}, State0 = #ch{queue_states = QueueStates0}) -> %% optimisation when there is one queue
-    ?LOG1(here1),
+    ?LOG_CHANNEL_METHOD_CALL(here1),
     AllNames = case rabbit_amqqueue:lookup(QName) of
         {ok, Q0} ->
            case amqqueue:get_options(Q0) of
@@ -2210,12 +2211,15 @@ deliver_to_queues({Delivery = #delivery{message    = Message = #basic_message{ex
             end;
         _ -> []
     end,
-    ?LOG1(#{'AllNames' => AllNames, 'QName' => QName}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'AllNames' => AllNames, 'QName' => QName}),
+    %% 这里Qs查出了一个 pid , 之后会给这个 pid 发送一条消息出去 ,必须弄清楚这个 actor 是在哪里启动的, 
+    %% 然后才好跟踪发布的消息, 根据跟踪, 这个　pid 来自于 表 rabbit_queue 里对应的一条记录,
+    %% 先去看下 queue.declare 是怎么在分布式表{rabbit_queue}里写入这条数据的,再回到这里继续跟,
     Qs = rabbit_amqqueue:lookup(AllNames),
-    ?LOG1(#{'Qs' => Qs, 'Delivery' => Delivery, 'QueueStates0' => QueueStates0}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'Qs' => Qs, 'Delivery' => Delivery, 'QueueStates0' => QueueStates0}),
     case rabbit_queue_type:deliver(Qs, Delivery, QueueStates0) of
         {ok, QueueStates, Actions}  ->
-            ?LOG1(#{'QueueStates' => QueueStates, 'Actions' => Actions}),
+            ?LOG_CHANNEL_METHOD_CALL(#{'QueueStates' => QueueStates, 'Actions' => Actions}),
 
             rabbit_global_counters:messages_routed(amqp091, erlang:min(1, length(Qs))),
             %% NB: the order here is important since basic.returns must be
@@ -2588,7 +2592,7 @@ handle_method(#'queue.declare'{queue       = QueueNameBin,
                                arguments   = Args} = Declare,
               ConnPid, AuthzContext, CollectorPid, VHostPath,
               #user{username = Username} = User) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'QueueNameBin' => QueueNameBin, 'durable' => DurableDeclare, 'VHostPath' => VHostPath}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'QueueNameBin' => QueueNameBin, 'durable' => DurableDeclare, 'VHostPath' => VHostPath, 'ConnPid' => ConnPid}),
 
     Owner = case ExclusiveDeclare of
                 true  -> ConnPid;

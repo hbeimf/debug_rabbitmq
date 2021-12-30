@@ -54,6 +54,8 @@
 is_enabled() -> true.
 
 declare(Q, Node) when ?amqqueue_is_classic(Q) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'Q' => Q, 'Node' => Node}),
+
     QName = amqqueue:get_name(Q),
     VHost = amqqueue:get_vhost(Q),
     Node1 = case {Node, rabbit_amqqueue:is_exclusive(Q)} of
@@ -70,6 +72,8 @@ declare(Q, Node) when ?amqqueue_is_classic(Q) ->
     Node1 = rabbit_mirror_queue_misc:initial_queue_node(Q, Node1),
     case rabbit_vhost_sup_sup:get_vhost_sup(VHost, Node1) of
         {ok, _} ->
+            ?LOG_CHANNEL_METHOD_CALL(#{'Q' => Q, 'Node1' => Node1}),
+            %% 这里应该接近创建新列队进程了, 
             gen_server2:call(
               rabbit_amqqueue_sup_sup:start_queue_process(Node1, Q, declare),
               {init, new}, infinity);
@@ -304,7 +308,7 @@ deliver(Qs0, #delivery{flow = Flow,
                        message = #basic_message{exchange_name = _Ex},
                        confirm = Confirm} = Delivery) ->
 
-    ?LOG1(#{'Qs0' => Qs0, 'Delivery' => Delivery}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'Qs0' => Qs0, 'Delivery' => Delivery, 'Confirm' => Confirm, 'MsgNo' => MsgNo}),
     %% TODO: record master and slaves for confirm processing
     {MPids, SPids, Qs, Actions} = qpids(Qs0, Confirm, MsgNo),
     QPids = MPids ++ SPids,
@@ -319,7 +323,7 @@ deliver(Qs0, #delivery{flow = Flow,
     MMsg = {deliver, Delivery, false},
     SMsg = {deliver, Delivery, true},
 
-    ?LOG1(#{'MMsg' => MMsg, 'SMsg' => SMsg}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'MMsg' => MMsg, 'SMsg' => SMsg, 'MPids' => MPids, 'SPids' => SPids}),
     delegate:invoke_no_result(MPids, {gen_server2, cast, [MMsg]}),
     delegate:invoke_no_result(SPids, {gen_server2, cast, [SMsg]}),
     {Qs, Actions}.

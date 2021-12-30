@@ -225,6 +225,9 @@ is_enabled(Type) ->
 declare(Q0, Node) ->
     Q = rabbit_queue_decorator:set(rabbit_policy:set(Q0)),
     Mod = amqqueue:get_type(Q),
+    ?LOG_CHANNEL_METHOD_CALL(#{'Q' => Q, 'Mod' => Mod, 'Node' => Node}),
+    % ==========log channel method call ========{rabbit_queue_type,228}==============
+    % #{'Mod' => rabbit_classic_queue,'Node' => 'rabbit@maomao-VirtualBox',
     Mod:declare(Q, Node).
 
 -spec delete(amqqueue:amqqueue(), boolean(),
@@ -445,7 +448,7 @@ module(QRef, Ctxs) ->
               stateless | state()) ->
     {ok, state(), actions()} | {error, Reason :: term()}.
 deliver(Qs, Delivery, State) ->
-    ?LOG1(#{'Qs' => Qs, 'Delivery' => Delivery, 'State' => State}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'Qs' => Qs, 'Delivery' => Delivery, 'State' => State}),
     try
         deliver0(Qs, Delivery, State)
     catch
@@ -471,10 +474,11 @@ deliver0(Qs, Delivery, #?STATE{} = State0) ->
                                     [{Q, Ctx#ctx.state} | A]
                             end, [{Q, Ctx#ctx.state}], Acc)
                end, #{}, Qs),
-    ?LOG1(#{'ByType' => ByType}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'ByType' => ByType}),
     %%% dispatch each group to queue type interface?
     {Xs, Actions} = maps:fold(fun(Mod, QSs, {X0, A0}) ->
-                                        ?LOG1(#{'Mod' => Mod, 'QSs' => QSs, 'Delivery' => Delivery}),
+                                    ?LOG_CHANNEL_METHOD_CALL(#{'Mod' => Mod, 'QSs' => QSs, 'Delivery' => Delivery}),
+                                    %% 'Mod' => rabbit_classic_queue,
                                       {X, A} = Mod:deliver(QSs, Delivery),
                                       {X0 ++ X, A0 ++ A}
                               end, {[], []}, ByType),
@@ -483,7 +487,7 @@ deliver0(Qs, Delivery, #?STATE{} = State0) ->
                       Ctx = get_ctx_with(Q, Acc, S),
                       set_ctx(qref(Q), Ctx#ctx{state = S}, Acc)
               end, State0, Xs),
-    ?LOG1(#{'State' => State, 'Actions' => Actions}),
+    ?LOG_CHANNEL_METHOD_CALL(#{'State' => State, 'Actions' => Actions}),
     return_ok(State, Actions).
 
 

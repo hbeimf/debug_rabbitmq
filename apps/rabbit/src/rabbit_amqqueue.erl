@@ -203,6 +203,7 @@ find_recoverable_queues() ->
     {'absent', amqqueue:amqqueue(), absent_reason()} |
     {protocol_error, Type :: atom(), Reason :: string(), Args :: term()}.
 declare(QueueName, Durable, AutoDelete, Args, Owner, ActingUser) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'QueueName' => QueueName, 'Durable' => Durable, 'AutoDelete' => AutoDelete, 'Args' => Args, 'Owner' => Owner, 'ActingUser' => ActingUser}),
     declare(QueueName, Durable, AutoDelete, Args, Owner, ActingUser, node()).
 
 
@@ -235,6 +236,7 @@ declare(QueueName = #resource{virtual_host = VHost}, Durable, AutoDelete, Args,
                               VHost,
                               #{user => ActingUser},
                               Type),
+            ?LOG_CHANNEL_METHOD_CALL(#{'Q' => Q}),
             rabbit_queue_type:declare(Q, Node);
         false ->
             {protocol_error, internal_error,
@@ -384,7 +386,9 @@ is_server_named_allowed(Args) ->
             [amqqueue:amqqueue()].
 
 lookup([])     -> [];                             %% optimisation
-lookup([Name]) -> ets:lookup(rabbit_queue, Name); %% optimisation
+lookup([Name]) -> 
+    ?LOG_CHANNEL_METHOD_CALL(#{'Name' => Name}),
+    ets:lookup(rabbit_queue, Name); %% optimisation
 lookup(Names) when is_list(Names) ->
     %% Normally we'd call mnesia:dirty_read/1 here, but that is quite
     %% expensive for reasons explained in rabbit_misc:dirty_read/1.

@@ -9,6 +9,7 @@
 -include_lib("rabbit_common/include/rabbit.hrl").
 -include_lib("rabbit_common/include/rabbit_framing.hrl").
 -include("amqqueue.hrl").
+-include_lib("glib/include/log.hrl").
 
 -behaviour(gen_server2).
 
@@ -142,6 +143,10 @@ statistics_keys() -> ?STATISTICS_KEYS ++ rabbit_backing_queue:info_keys().
 
 init(Q) ->
     process_flag(trap_exit, true),
+    %% 经过跟踪, 这个 ａｃｔｏｒ　就是客户端发送 'queue.declare' 协议时所生成的 ａｃｔｏｒ,　
+    %% 后面客户端 ｐｕｂ消息时,也会 ｃａｓｔ　到这个 ａｃｔｏｒ　
+    ?LOG_CHANNEL_METHOD_CALL(self()),
+
     ?store_proc_name(amqqueue:get_name(Q)),
     {ok, init_state(amqqueue:set_pid(Q, self())), hibernate,
      {backoff, ?HIBERNATE_AFTER_MIN, ?HIBERNATE_AFTER_MIN, ?DESIRED_HIBERNATE},
@@ -676,6 +681,9 @@ attempt_delivery(Delivery = #delivery{sender  = SenderPid,
                                               backing_queue       = BQ,
                                               backing_queue_state = BQS,
                                               msg_id_to_channel   = MTC}) ->
+
+    ?LOG_CHANNEL_METHOD_CALL(#{'Delivery' => Delivery, 'Message' => Message, 'SenderPid' => SenderPid}),
+
     case rabbit_queue_consumers:deliver(
            fun (true)  -> true = BQ:is_empty(BQS),
                           {AckTag, BQS1} =
@@ -692,6 +700,7 @@ attempt_delivery(Delivery = #delivery{sender  = SenderPid,
                                     msg_id_to_channel   = MTC1,
                                     consumers           = Consumers})};
         {undelivered, ActiveConsumersChanged, Consumers} ->
+            ?LOG_CHANNEL_METHOD_CALL(#{'ActiveConsumersChanged' => ActiveConsumersChanged, 'Consumers' => Consumers}),
             {undelivered, maybe_notify_decorators(
                             ActiveConsumersChanged,
                             State#q{consumers = Consumers})}
@@ -704,6 +713,9 @@ maybe_deliver_or_enqueue(Delivery = #delivery{message = Message},
                                     backing_queue_state = BQS,
                                     dlx                 = DLX,
                                     dlx_routing_key     = RK}) ->
+
+    ?LOG_CHANNEL_METHOD_CALL(#{'Delivery' => Delivery, 'Message' => Message}),
+
     send_mandatory(Delivery), %% must do this before confirms
     case {will_overflow(Delivery, State), Overflow} of
         {true, 'reject-publish'} ->
@@ -740,6 +752,7 @@ deliver_or_enqueue(Delivery = #delivery{message = Message,
                                         flow    = Flow},
                    Delivered,
                    State = #q{q = Q, backing_queue = BQ}) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'Delivery' => Delivery, 'Message' => Message, 'SenderPid' => SenderPid}),
     {Confirm, State1} = send_or_record_confirm(Delivery, State),
     Props = message_properties(Message, Confirm, State1),
     case attempt_delivery(Delivery, Props, Delivered, State1) of
@@ -1529,6 +1542,9 @@ handle_cast({deliver,
                                   flow   = Flow},
              SlaveWhenPublished},
             State = #q{senders = Senders}) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'Delivery' => Delivery}),
+    %% 消息被　ｐｕｂ　到这里来了, 
+
     Senders1 = case Flow of
     %% In both credit_flow:ack/1 we are acking messages to the channel
     %% process that sent us the message delivery. See handle_ch_down
