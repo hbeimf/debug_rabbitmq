@@ -8,6 +8,7 @@
 -module(rabbit_binding).
 -include_lib("rabbit_common/include/rabbit.hrl").
 -include("amqqueue.hrl").
+-include_lib("glib/include/log.hrl").
 
 -export([recover/0, recover/2, exists/1, add/2, add/3, remove/1, remove/2, remove/3, remove/4]).
 -export([list/1, list_for_source/1, list_for_destination/1,
@@ -156,6 +157,8 @@ add(Binding, ActingUser) -> add(Binding, fun (_Src, _Dst) -> ok end, ActingUser)
 -spec add(rabbit_types:binding(), inner_fun(), rabbit_types:username()) -> bind_res().
 
 add(Binding, InnerFun, ActingUser) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'Binding' => Binding, 'ActingUser' => ActingUser}),
+
     binding_action(
       Binding,
       fun (Src, Dst, B) ->
@@ -168,8 +171,11 @@ add(Binding, InnerFun, ActingUser) ->
                       %% anything else
                       case InnerFun(Src, Dst) of
                           ok ->
+                              ?LOG_CHANNEL_METHOD_CALL(#{'Src' => Src, 'Dst' => Dst, 'B' => B}),
                               case mnesia:read({rabbit_route, B}) of
-                                  []  -> add(Src, Dst, B, ActingUser);
+                                  []  -> 
+                                    ?LOG_CHANNEL_METHOD_CALL(here),
+                                    add(Src, Dst, B, ActingUser);
                                   [_] -> fun () -> ok end
                               end;
                           {error, _} = Err ->
@@ -438,6 +444,7 @@ binding_action(Binding = #binding{source      = SrcName,
       SrcName, DstName,
       fun (Src, Dst) ->
               SortedArgs = rabbit_misc:sort_field_table(Arguments),
+              ?LOG_CHANNEL_METHOD_CALL(#{'SortedArgs' => SortedArgs}),
               Fun(Src, Dst, Binding#binding{args = SortedArgs})
       end, ErrFun).
 

@@ -6,6 +6,7 @@
 %%
 
 -module(rabbit_amqqueue).
+-include_lib("glib/include/log.hrl").
 
 -export([store_queue_ram_dirty/1]).
 -export([warn_file_limit/0]).
@@ -389,6 +390,7 @@ lookup(Names) when is_list(Names) ->
     %% expensive for reasons explained in rabbit_misc:dirty_read/1.
     lists:append([ets:lookup(rabbit_queue, Name) || Name <- Names]);
 lookup(Name) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'Name' => Name}),
     rabbit_misc:dirty_read({rabbit_queue, Name}).
 
 -spec lookup_many ([name()]) -> [amqqueue:amqqueue()].
@@ -574,6 +576,8 @@ with(Name, F, E) ->
     with(Name, F, E, 2000).
 
 with(#resource{} = Name, F, E, RetriesLeft) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'Name' => Name}),
+
     case lookup(Name) of
         {ok, Q} when ?amqqueue_state_is(Q, live) andalso RetriesLeft =:= 0 ->
             %% Something bad happened to that queue, we are bailing out

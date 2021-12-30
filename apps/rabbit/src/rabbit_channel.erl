@@ -1649,6 +1649,7 @@ handle_method(#'exchange.declare'{nowait = NoWait} = Method,
                                          queue_collector_pid = CollectorPid,
                                          conn_pid = ConnPid,
                                          authz_context = AuthzContext}}) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{params => {Method, ConnPid, AuthzContext, CollectorPid, VHostPath, User}}),
     handle_method(Method, ConnPid, AuthzContext, CollectorPid, VHostPath, User),
     return_ok(State, NoWait, #'exchange.declare_ok'{});
 
@@ -1685,8 +1686,10 @@ handle_method(#'queue.declare'{nowait = NoWait} = Method,
                                          authz_context = AuthzContext,
                                          queue_collector_pid = CollectorPid,
                                          user = User}}) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{params => {Method, ConnPid, AuthzContext, CollectorPid, VHostPath, User}}),
     {ok, QueueName, MessageCount, ConsumerCount} =
         handle_method(Method, ConnPid, AuthzContext, CollectorPid, VHostPath, User),
+    ?LOG_CHANNEL_METHOD_CALL(#{'QueueName' => QueueName, 'MessageCount' => MessageCount, 'ConsumerCount' => ConsumerCount}),    
     return_queue_declare_ok(QueueName, NoWait, MessageCount,
                             ConsumerCount, State);
 
@@ -1707,6 +1710,8 @@ handle_method(#'queue.bind'{nowait = NoWait} = Method, _,
                                       user = User,
                                       queue_collector_pid = CollectorPid,
                                       virtual_host = VHostPath}}) ->
+    
+    ?LOG_CHANNEL_METHOD_CALL(#{'Method' => Method, 'param' => {ConnPid, AuthzContext, CollectorPid, VHostPath, User}}),
     handle_method(Method, ConnPid, AuthzContext, CollectorPid, VHostPath, User),
     return_ok(State, NoWait, #'queue.bind_ok'{});
 
@@ -1926,6 +1931,8 @@ binding_action(Fun, SourceNameBin0, DestinationType, DestinationNameBin0,
     ExchangeName = rabbit_misc:r(VHostPath, exchange, ExchangeNameBin),
     [check_not_default_exchange(N) || N <- [DestinationName, ExchangeName]],
     check_read_permitted(ExchangeName, User, AuthzContext),
+    ?LOG_CHANNEL_METHOD_CALL(#{'DestinationName' => DestinationName, 'ExchangeName' => ExchangeName}),
+
     case rabbit_exchange:lookup(ExchangeName) of
         {error, not_found} ->
             ok;
@@ -2557,6 +2564,7 @@ handle_method(#'queue.bind'{queue       = QueueNameBin,
                             routing_key = RoutingKey,
                             arguments   = Arguments},
               ConnPid, AuthzContext, _CollectorId, VHostPath, User) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'QueueNameBin' => QueueNameBin, 'ExchangeNameBin' => ExchangeNameBin, 'RoutingKey' => RoutingKey, 'Arguments' => Arguments}),
     binding_action(fun rabbit_binding:add/3,
                    ExchangeNameBin, queue, QueueNameBin,
                    RoutingKey, Arguments, VHostPath, ConnPid, AuthzContext, User);
@@ -2580,6 +2588,8 @@ handle_method(#'queue.declare'{queue       = QueueNameBin,
                                arguments   = Args} = Declare,
               ConnPid, AuthzContext, CollectorPid, VHostPath,
               #user{username = Username} = User) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'QueueNameBin' => QueueNameBin, 'durable' => DurableDeclare, 'VHostPath' => VHostPath}),
+
     Owner = case ExclusiveDeclare of
                 true  -> ConnPid;
                 false -> none
@@ -2602,6 +2612,8 @@ handle_method(#'queue.declare'{queue       = QueueNameBin,
     QueueName = rabbit_misc:r(VHostPath, queue, ActualNameBin),
     check_configure_permitted(QueueName, User, AuthzContext),
     rabbit_core_metrics:queue_declared(QueueName),
+    ?LOG_CHANNEL_METHOD_CALL(#{'QueueName' => QueueName, 'User' => User, 'VHostPath' => VHostPath, 'ActualNameBin' => ActualNameBin}),
+
     case rabbit_amqqueue:with(
            QueueName,
            fun (Q) -> ok = rabbit_amqqueue:assert_equivalence(
@@ -2609,6 +2621,7 @@ handle_method(#'queue.declare'{queue       = QueueNameBin,
                       maybe_stat(NoWait, Q)
            end) of
         {ok, MessageCount, ConsumerCount} ->
+            ?LOG_CHANNEL_METHOD_CALL(#{'QueueName' => QueueName, 'MessageCount' => MessageCount, 'ConsumerCount' => ConsumerCount}),
             {ok, QueueName, MessageCount, ConsumerCount};
         {error, not_found} ->
             %% enforce the limit for newly declared queues only
@@ -2626,6 +2639,7 @@ handle_method(#'queue.declare'{queue       = QueueNameBin,
                    check_write_permitted(DLX, User, AuthzContext),
                    ok
             end,
+            ?LOG_CHANNEL_METHOD_CALL(#{'QueueName' => QueueName, 'Durable' => Durable, 'AutoDelete' => AutoDelete, 'Args' => Args, 'Owner' => Owner, 'Username' => Username}),
             case rabbit_amqqueue:declare(QueueName, Durable, AutoDelete,
                                          Args, Owner, Username) of
                 {new, Q} when ?is_amqqueue(Q) ->
@@ -2755,10 +2769,15 @@ handle_method(#'exchange.declare'{exchange    = ExchangeNameBin,
                                   arguments   = Args},
               _ConnPid, AuthzContext, _CollectorPid, VHostPath,
               #user{username = Username} = User) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'ExchangeNameBin' => ExchangeNameBin}),
+
     CheckedType = rabbit_exchange:check_type(TypeNameBin),
     ExchangeName = rabbit_misc:r(VHostPath, exchange, strip_cr_lf(ExchangeNameBin)),
+    ?LOG_CHANNEL_METHOD_CALL(#{'ExchangeName' => ExchangeName}),
+
     check_not_default_exchange(ExchangeName),
     check_configure_permitted(ExchangeName, User, AuthzContext),
+    %% 检查交换机是否已经存在 ,如果不存在就新建一个, 如果存在就直接返回分布式表里的记录
     X = case rabbit_exchange:lookup(ExchangeName) of
             {ok, FoundX} -> FoundX;
             {error, not_found} ->
