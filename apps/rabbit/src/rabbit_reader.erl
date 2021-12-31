@@ -470,6 +470,7 @@ run({M, F, A}) ->
     catch {become, MFA} -> run(MFA)
     end.
 
+%%  接收客户端发过来的数据, 开始真正的业务逻辑
 recvloop(Deb, Buf, BufLen, State = #v1{pending_recv = true}) ->
     % ?LOG({here, self()}),
     mainloop(Deb, Buf, BufLen, State);

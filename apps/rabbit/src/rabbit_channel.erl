@@ -1480,8 +1480,11 @@ handle_method(#'basic.consume'{queue        = QueueNameBin,
                                          authz_context = AuthzContext},
                              consumer_mapping  = ConsumerMapping
                             }) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'QueueNameBin' => QueueNameBin, 'NoAck' => NoAck, 'NoWait' => NoWait, 'pid' => self(), 'ConsumerTag' => ConsumerTag, 'ConsumerMapping' => ConsumerMapping}),
+
     case maps:find(ConsumerTag, ConsumerMapping) of
         error ->
+            ?LOG_CHANNEL_METHOD_CALL(here),
             QueueName = qbin_to_resource(QueueNameBin, VHostPath),
             check_read_permitted(QueueName, User, AuthzContext),
             ActualConsumerTag =
@@ -1490,6 +1493,8 @@ handle_method(#'basic.consume'{queue        = QueueNameBin,
                                                 "amq.ctag");
                     Other -> Other
                 end,
+            ?LOG_CHANNEL_METHOD_CALL(#{'ActualConsumerTag' => ActualConsumerTag, other => {QueueName, NoAck, ConsumerPrefetch, ActualConsumerTag, ExclusiveConsume, Args, NoWait, State}}),
+
             case basic_consume(
                    QueueName, NoAck, ConsumerPrefetch, ActualConsumerTag,
                    ExclusiveConsume, Args, NoWait, State) of
@@ -1817,6 +1822,7 @@ basic_consume(QueueName, NoAck, ConsumerPrefetch, ActualConsumerTag,
                           limiter = Limiter,
                           consumer_mapping  = ConsumerMapping,
                           queue_states = QueueStates0}) ->
+    ?LOG_CHANNEL_METHOD_CALL(here),
     case rabbit_amqqueue:with_exclusive_access_or_die(
            QueueName, ConnPid,
            fun (Q) ->
@@ -1832,6 +1838,8 @@ basic_consume(QueueName, NoAck, ConsumerPrefetch, ActualConsumerTag,
                     Q}
            end) of
         {{ok, QueueStates, Actions}, Q} when ?is_amqqueue(Q) ->
+            ?LOG_CHANNEL_METHOD_CALL(here),
+            
             rabbit_global_counters:consumer_created(amqp091),
             CM1 = maps:put(
                     ActualConsumerTag,
