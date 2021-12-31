@@ -1040,6 +1040,7 @@ process_frame(Frame, Channel, State) ->
                     % queue.declare　
                     % exchange.declare　
                     % queue.bind
+                    % basic.consume
                     rabbit_channel:do(ChPid, Method),
                     put(ChKey, {ChPid, NewAState}),
                     post_process_frame(Frame, ChPid, State1);

@@ -1663,7 +1663,8 @@ basic_get(Q, NoAck, LimiterPid, CTag, QStates0) ->
 basic_consume(Q, NoAck, ChPid, LimiterPid,
               LimiterActive, ConsumerPrefetchCount, ConsumerTag,
               ExclusiveConsume, Args, OkMsg, ActingUser, Contexts) ->
-
+    ?LOG_CHANNEL_METHOD_CALL(#{params => {Q, NoAck, ChPid, LimiterPid, LimiterActive, ConsumerPrefetchCount, ConsumerTag, ExclusiveConsume, Args, OkMsg, ActingUser, Contexts}}),
+    %% todo:
     QName = amqqueue:get_name(Q),
     %% first phase argument validation
     %% each queue type may do further validations
@@ -1678,6 +1679,7 @@ basic_consume(Q, NoAck, ChPid, LimiterPid,
              args => Args,
              ok_msg => OkMsg,
              acting_user =>  ActingUser},
+    ?LOG_CHANNEL_METHOD_CALL(#{'Spec' => Spec, 'Q' => Q, 'Contexts' => Contexts, test => 123}),
     rabbit_queue_type:consume(Q, Spec, Contexts).
 
 -spec basic_cancel(amqqueue:amqqueue(), rabbit_types:ctag(), any(),

@@ -651,12 +651,14 @@ handle_cast({method, Method, Content, Flow},
     % ?LOG1(#{'Method' => Method, 'State' => State, 'Content' => Content, 'IState' => IState}),
     Var = rabbit_channel_interceptor:intercept_in( expand_shortcuts(Method, State), Content, IState),
     ?LOG_CHANNEL_METHOD_CALL(#{'Method' => Method, 'Flow' => Flow, 'Content' => Content, 'Var' => Var}),
+    %% sub 消费者逻辑转到这里来了,
     try handle_method(Var, State) of
         {reply, Reply, NewState} ->
             ?LOG_CHANNEL_METHOD_CALL(#{'Reply' => Reply}),
             ok = send(Reply, NewState),
             noreply(NewState);
         {noreply, NewState} ->
+            %%　转到这里来了,
             ?LOG_CHANNEL_METHOD_CALL(here1),
             noreply(NewState);
         stop ->
@@ -1484,7 +1486,7 @@ handle_method(#'basic.consume'{queue        = QueueNameBin,
 
     case maps:find(ConsumerTag, ConsumerMapping) of
         error ->
-            ?LOG_CHANNEL_METHOD_CALL(here),
+            ?LOG_CHANNEL_METHOD_CALL(here), %%　消费者逻辑转到这里来了,　上面的两个变量的值是:　#{'ConsumerMapping' => #{},'ConsumerTag' => <<>>,
             QueueName = qbin_to_resource(QueueNameBin, VHostPath),
             check_read_permitted(QueueName, User, AuthzContext),
             ActualConsumerTag =
@@ -1499,6 +1501,7 @@ handle_method(#'basic.consume'{queue        = QueueNameBin,
                    QueueName, NoAck, ConsumerPrefetch, ActualConsumerTag,
                    ExclusiveConsume, Args, NoWait, State) of
                 {ok, State1} ->
+                    ?LOG_CHANNEL_METHOD_CALL(here), %%　转到这里来了,　
                     {noreply, State1};
                 {error, exclusive_consume_unavailable} ->
                     rabbit_misc:protocol_error(
@@ -1822,10 +1825,11 @@ basic_consume(QueueName, NoAck, ConsumerPrefetch, ActualConsumerTag,
                           limiter = Limiter,
                           consumer_mapping  = ConsumerMapping,
                           queue_states = QueueStates0}) ->
-    ?LOG_CHANNEL_METHOD_CALL(here),
+    ?LOG_CHANNEL_METHOD_CALL(here), %% amqp_channel:subscribe　basic.consume　声明是个消费者逻辑跟到了这里,　ｐｕｂ/ｓｕｂ是怎么对接起来的,可能再跟跟就能了解真相了,　
     case rabbit_amqqueue:with_exclusive_access_or_die(
            QueueName, ConnPid,
            fun (Q) ->
+                    ?LOG_CHANNEL_METHOD_CALL(here), %% 跟过去是回调恶梦,　先搞几个断点看下,　
                    {rabbit_amqqueue:basic_consume(
                       Q, NoAck, self(),
                       rabbit_limiter:pid(Limiter),

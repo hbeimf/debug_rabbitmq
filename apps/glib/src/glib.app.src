@@ -11,6 +11,7 @@
     %, recon
     ,sys_log
     % , rabbit_common
+    , stdout_formatter
    ]},
   {env,[]},
   {modules, []},

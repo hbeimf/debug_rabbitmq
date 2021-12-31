@@ -16,6 +16,7 @@ do(Pid, Method) ->
 
 do(Pid, Method, Content) ->
     ?LOG_CHANNEL_METHOD_CALL(#{'Method' => Method, 'Pid' => Pid, 'Content' => Content}),
+    %% 这里会转到 rabbit_channel.erl 653 handle_cast 附近,
     gen_server2:cast(Pid, {method, Method, Content, noflow}).
 
 do_flow(Pid, Method, Content) ->
