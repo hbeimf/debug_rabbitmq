@@ -341,10 +341,13 @@ new(Q, State) when ?is_amqqueue(Q) ->
 -spec consume(amqqueue:amqqueue(), consume_spec(), state()) ->
     {ok, state(), actions()} | {error, term()}.
 consume(Q, Spec, State) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'Spec' => Spec, 'Q' => Q, 'State' => State}),
     #ctx{state = CtxState0} = Ctx = get_ctx(Q, State),
     Mod = amqqueue:get_type(Q),
+    ?LOG_CHANNEL_METHOD_CALL(#{'Mod' => Mod}), %% #{'Mod' => rabbit_classic_queue}
     case Mod:consume(Q, Spec, CtxState0) of
         {ok, CtxState, Actions} ->
+            ?LOG_CHANNEL_METHOD_CALL(#{'CtxState' => CtxState, 'Actions' => Actions}),
             return_ok(set_ctx(Q, Ctx#ctx{state = CtxState}, State), Actions);
         Err ->
             Err

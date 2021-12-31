@@ -144,10 +144,16 @@ statistics_keys() -> ?STATISTICS_KEYS ++ rabbit_backing_queue:info_keys().
 init(Q) ->
     process_flag(trap_exit, true),
     %% 经过跟踪, 这个 ａｃｔｏｒ　就是客户端发送 'queue.declare' 协议时所生成的 ａｃｔｏｒ,　
+
+    %% pub:
     %% 后面客户端 ｐｕｂ消息时,也会 ｃａｓｔ　到这个 ａｃｔｏｒ　
     ?LOG_CHANNEL_METHOD_CALL(self()),
+    %% sub:
+    %% 经过进一步的跟踪,　ｓｕｂ　也提交到了这边来了,　这个ａｃｔｏｒ是连接　ｐｕｂ/ｓｕｂ的关键所在,　
+    %% 客户端的　这一句调用:amqp_channel:subscribe(Channel, #'basic.consume'{queue = Queue, no_ack = false}, self()),
+    %%　转到了下面的　ｈａｎｄｌｅ_ｃａｌｌ　里去了,　搜索　amqp_channel:subscribe　就能跳到相应的逻辑附近,　
 
-    ?store_proc_name(amqqueue:get_name(Q)),
+  ?store_proc_name(amqqueue:get_name(Q)),
     {ok, init_state(amqqueue:set_pid(Q, self())), hibernate,
      {backoff, ?HIBERNATE_AFTER_MIN, ?HIBERNATE_AFTER_MIN, ?DESIRED_HIBERNATE},
     ?MODULE}.
@@ -1332,6 +1338,8 @@ handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
             _From, State = #q{consumers             = Consumers,
                               active_consumer = Holder,
                               single_active_consumer_on = SingleActiveConsumerOn}) ->
+    ?LOG_CHANNEL_METHOD_CALL(here), %% amqp_channel:subscribe(Channel, #'basic.consume'{queue = Queue, no_ack = false}, self()), 客户端的这句调用转到了这里,　
+    %%　声明一个消费者转到了这里,
     ConsumerRegistration = case SingleActiveConsumerOn of
         true ->
             case ExclusiveConsume of
@@ -1373,6 +1381,7 @@ handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
                                     active_consumer    = ExclusiveConsumer}}
             end
     end,
+    ?LOG_CHANNEL_METHOD_CALL(#{'ConsumerRegistration' => ConsumerRegistration}),
     case ConsumerRegistration of
         {error, Reply} ->
             Reply;
@@ -1381,6 +1390,8 @@ handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
             QName = qname(State1),
             AckRequired = not NoAck,
             TheConsumer = rabbit_queue_consumers:get(ChPid, ConsumerTag, State1#q.consumers),
+            ?LOG_CHANNEL_METHOD_CALL(#{'ChPid' => ChPid, 'OkMsg' => OkMsg, 'QName' => QName, 'AckRequired' => AckRequired, 'TheConsumer' => TheConsumer}),
+
             {ConsumerIsActive, ActivityStatus} =
                 case {SingleActiveConsumerOn, State1#q.active_consumer} of
                     {true, TheConsumer} ->

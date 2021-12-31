@@ -172,8 +172,11 @@ update(Q, #?STATE{pid = Pid} = State) when ?amqqueue_is_classic(Q) ->
     end.
 
 consume(Q, Spec, State) when ?amqqueue_is_classic(Q) ->
+    ?LOG_CHANNEL_METHOD_CALL(#{'Spec' => Spec, 'Q' => Q, 'State' => State}),
+
     QPid = amqqueue:get_pid(Q),
     QRef = amqqueue:get_name(Q),
+    ?LOG_CHANNEL_METHOD_CALL(#{'QPid' => QPid, 'Q' => Q, 'QRef' => QRef}),
     #{no_ack := NoAck,
       channel_pid := ChPid,
       limiter_pid := LimiterPid,
@@ -184,6 +187,7 @@ consume(Q, Spec, State) when ?amqqueue_is_classic(Q) ->
       args := Args,
       ok_msg := OkMsg,
       acting_user :=  ActingUser} = Spec,
+    %%  这里的调用会转到　rabbit_amqqueue_process　模块
     case delegate:invoke(QPid,
                          {gen_server2, call,
                           [{basic_consume, NoAck, ChPid, LimiterPid,

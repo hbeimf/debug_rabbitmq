@@ -1,6 +1,7 @@
 /debug_ranch/
 /gwc/
 /ignore/
+/deps.tar.gz
 /deps/
 .rebar3
 _*
