@@ -845,7 +845,9 @@ rotate_logs() ->
           {'ok',pid()}.
 
 start(normal, []) ->
-    ?LOG2("starting rabbit from here..."),
+%%    从这里开如启动的;　在rabbit.app.src里的　{mod, {rabbit, []}},　这个配置处出发
+%%    ?LOG2("starting rabbit from here..."),
+
     %% Reset boot state and clear the stop reason again (it was already
     %% made in rabbitmq_prelaunch).
     %%
@@ -858,7 +860,7 @@ start(normal, []) ->
     try
         % ?LOG(hereXX),
         run_prelaunch_second_phase(),
-        ?LOG(here),
+%%        ?LOG(here),
 
         ProductInfo = product_info(),
         % ?LOG2(ProductInfo),
@@ -997,6 +999,7 @@ do_run_postlaunch_phase(Plugins) ->
         %% see rabbitmq/rabbitmq-server#2405.
         ?LOG("start ranch XXXXXXXXXXX"),
         ?LOG_INFO("Ready to start client connection listeners"),
+          %% 其它一切启动好后,再在这里启动网络,准备接收客户端的连接,　此处跟进去启动网络
         ok = rabbit_networking:boot(),
 
         %% The node is ready: mark it as such and log it.

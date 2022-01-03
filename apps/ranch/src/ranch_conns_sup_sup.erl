@@ -18,6 +18,7 @@
 
 -export([start_link/4]).
 -export([init/1]).
+-include_lib("glib/include/log.hrl").
 
 -spec start_link(ranch:ref(), module(), module(), module()) -> {ok, pid()}.
 start_link(Ref, Transport, Protocol, Logger) ->
@@ -39,4 +40,27 @@ init({Ref, Transport, Protocol, Logger}) ->
 		start => {ranch_conns_sup, start_link, [Ref, N, Transport, TransOpts, Protocol, Logger]},
 		type => supervisor
 	} || N <- lists:seq(1, NumConnsSups)],
+	% ?LOG(ChildSpecs),
 	{ok, {#{intensity => 1 + ceil(math:log2(NumConnsSups))}, ChildSpecs}}.
+
+% ==========log begin========{ranch_conns_sup_sup,43}==============
+% [#{id => {ranch_conns_sup,1},
+% 	start => 
+% 		{ranch_conns_sup,start_link,
+% 						[{acceptor,{0,0,0,0,0,0,0,0},5672},
+% 							1,ranch_tcp,
+% 							#{connection_type => supervisor,
+% 							handshake_timeout => 5000,
+% 							max_connections => infinity,num_acceptors => 10,
+% 							num_conns_sups => 1,
+% 							socket_opts =>
+% 								[{ip,{0,0,0,0,0,0,0,0}},
+% 								{port,5672},
+% 								inet6,
+% 								{backlog,128},
+% 								{nodelay,true},
+% 								{linger,{true,0}},
+% 								{exit_on_close,false}]},
+% 							rabbit_connection_sup,logger]},
+% 	type => supervisor}]
+	

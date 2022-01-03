@@ -34,6 +34,25 @@ start_link(IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartu
       ?MODULE, {IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartup, OnShutdown,
                 ConcurrentAcceptorCount, ConcurrentConnsSups, Label}).
 
+%%==========log begin========{tcp_listener_sup,40}==============
+%%{{0,0,0,0,0,0,0,0},
+%%5672,ranch_tcp,
+%%[inet6,{backlog,128},{nodelay,true},{linger,{true,0}},{exit_on_close,false}],
+%%rabbit_connection_sup,[],
+%%{rabbit_networking,tcp_listener_started,
+%%        [amqp,
+%%        [{backlog,128},
+%%        {nodelay,true},
+%%        {linger,{true,0}},
+%%        {exit_on_close,false}]]},
+%%{rabbit_networking,tcp_listener_stopped,
+%%      [amqp,
+%%      [{backlog,128},
+%%      {nodelay,true},
+%%      {linger,{true,0}},
+%%      {exit_on_close,false}]]},
+%%10,1,"TCP listener"}
+
 init({IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartup, OnShutdown,
       ConcurrentAcceptorCount, ConcurrentConnsSups, Label}) ->
 
@@ -60,7 +79,7 @@ init({IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartup, On
         Transport, RanchListenerOpts,
         ProtoSup, ProtoOpts),
 
-    % ?LOG1(#{one => RanchChildSpec, two => OurChildSpec, pid => self()}),
+%%    ?LOG(#{one => RanchChildSpec, two => OurChildSpec, pid => self()}),
     {ok, {Flags, [RanchChildSpec, OurChildSpec]}}.
 
 max_conn(infinity, _) ->
@@ -68,3 +87,58 @@ max_conn(infinity, _) ->
 max_conn(Max, Sups) ->
   %% connection_max in Ranch is per connection supervisor
   Max div Sups.
+
+%%==========log begin========{tcp_listener_sup,82}==============
+
+%%这个ａｃｔｏｒ　才是启动网络的主线,　这里启动的方式比往常的启动更低阶一点,
+%%握手的时候将　ｓｏｃｋｅｔ　句柄传递给　ｒａｂｂｉｔ_ｒｅａｄｅｒ actor
+%%在那个　ａｃｔｏｒ　里进行网络数据的读写操作,　那里是业务逻辑的起点
+
+
+%%#{one =>
+%%    #{id => {ranch_embedded_sup,{acceptor,{0,0,0,0,0,0,0,0},5672}},
+%%    start =>
+%%        {ranch_embedded_sup,start_link,
+%%        [{acceptor,{0,0,0,0,0,0,0,0},5672},
+%%        ranch_tcp,
+%%            #{connection_type => supervisor,handshake_timeout => 5000,
+%%                  max_connections => infinity,num_acceptors => 10,
+%%                  num_conns_sups => 1,
+%%                  socket_opts =>
+%%                  [{ip,{0,0,0,0,0,0,0,0}},
+%%                  {port,5672},
+%%                  inet6,
+%%                  {backlog,128},
+%%                  {nodelay,true},
+%%                  {linger,{true,0}},
+%%                  {exit_on_close,false}]},
+%%            rabbit_connection_sup,[]]},
+%%    type => supervisor},
+%%    pid => <0.4857.0>,
+
+
+%%下面这个　ａｃｔｏｒ　主要是在分布式表
+%%　rabbit_listener
+%%里写一条记录,　记录下监听端口的一些属性,　实为跑龙套业务,　
+%%主要的网络业务还是上一个ａｃｔｏｒ里,　
+
+%%two =>
+%%    {tcp_listener,
+%%          {tcp_listener,start_link,
+%%          [{0,0,0,0,0,0,0,0},
+%%          5672,
+%%          {rabbit_networking,tcp_listener_started,
+%%              [amqp,
+%%              [{backlog,128},
+%%              {nodelay,true},
+%%              {linger,{true,0}},
+%%              {exit_on_close,false}]]},
+%%          {rabbit_networking,tcp_listener_stopped,
+%%                [amqp,
+%%                [{backlog,128},
+%%                {nodelay,true},
+%%                {linger,{true,0}},
+%%                {exit_on_close,false}]]},
+%%          "TCP listener"]},
+%%    transient,4294967295,worker,
+%%    [tcp_listener]}}

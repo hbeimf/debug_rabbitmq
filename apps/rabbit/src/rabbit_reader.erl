@@ -83,6 +83,7 @@
           %% pre_init | securing | running | blocking | blocked | closing | closed | {become, F}
           connection_state,
           %% see comment in rabbit_connection_sup:start_link/0
+          %%  启动这个ａｃｔｏｒ的时候,helper_sup　仅仅是一个空监督进程,下面没有启动任何子进程
           helper_sup,
           %% takes care of cleaning up exclusive queues,
           %% see rabbit_queue_collector
@@ -158,6 +159,8 @@
 
 -spec start_link(pid(), any()) -> rabbit_types:ok(pid()).
 
+% HelperSup　目前是一个空监督进程,
+% Ref　是为了在握手的时候拿到　Socket 
 start_link(HelperSup, Ref) ->
     Pid = proc_lib:spawn_link(?MODULE, init, [self(), HelperSup, Ref]),
 
@@ -179,6 +182,7 @@ init(Parent, HelperSup, Ref) ->
     {ok, Sock} = rabbit_networking:handshake(Ref,
         application:get_env(rabbit, proxy_protocol, false)),
     Deb = sys:debug_options([]),
+    %%　Parent　是　rabbit_connection_sup　监督进程
     start_connection(Parent, HelperSup, Deb, Sock).
 
 -spec system_continue(_,_,{[binary()], non_neg_integer(), #v1{}}) -> any().

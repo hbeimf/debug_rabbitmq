@@ -47,7 +47,7 @@ init({Ref, Transport, Protocol, Logger}) ->
 			type => supervisor
 		}
 	],
-	?LOG(ChildSpecs),
+%%	?LOG(ChildSpecs),
 	{ok, {#{strategy => rest_for_one}, ChildSpecs}}.
 
 % ==========log begin========{ranch_listener_sup,50}==============

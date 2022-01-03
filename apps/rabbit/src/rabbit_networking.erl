@@ -78,8 +78,8 @@
 
 -spec boot() -> 'ok' | no_return().
 
+%% 启动　ranch　依赖,　监听端口,准备接收客户端的连接,
 boot() ->
-    ?LOG(start_ranch),
     ok = record_distribution_listener(),
     _ = application:start(ranch),
     rabbit_log:debug("Started Ranch"),
@@ -307,6 +307,33 @@ start_listener0(Address, NumAcceptors, ConcurrentConnsSupsCount, Protocol, Label
             {IPAddress, Port, _Family} = Address,
             {error, {could_not_start_listener, rabbit_misc:ntoa(IPAddress), Port, Other}}
     end.
+
+%%==========log begin========{rabbit_networking,298}==============
+%%{'rabbit_tcp_listener_sup_:::5672',
+%%{tcp_listener_sup,start_link,
+%%[{0,0,0,0,0,0,0,0},
+%%5672,ranch_tcp,
+%%[inet6,
+%%{backlog,128},
+%%{nodelay,true},
+%%{linger,{true,0}},
+%%{exit_on_close,false}],
+%%rabbit_connection_sup,[],
+%%{rabbit_networking,tcp_listener_started,
+%%[amqp,
+%%[{backlog,128},
+%%{nodelay,true},
+%%{linger,{true,0}},
+%%{exit_on_close,false}]]},
+%%{rabbit_networking,tcp_listener_stopped,
+%%[amqp,
+%%[{backlog,128},
+%%{nodelay,true},
+%%{linger,{true,0}},
+%%{exit_on_close,false}]]},
+%%10,1,"TCP listener"]},
+%%transient,infinity,supervisor,
+%%[tcp_listener_sup]}
 
 transport(Protocol) ->
     case Protocol of
