@@ -142,9 +142,17 @@ statistics_keys() -> ?STATISTICS_KEYS ++ rabbit_backing_queue:info_keys().
 %%----------------------------------------------------------------------------
 
 init(Q) ->
+    % ?LOG3(Q),
     process_flag(trap_exit, true),
-    %% 经过跟踪, 这个 ａｃｔｏｒ　就是客户端发送 'queue.declare' 协议时所生成的 ａｃｔｏｒ,　
-
+    %% 经过跟踪, 这个 ａｃｔｏｒ　就是客户端发送 'queue.declare' 协议时所生成的 ａｃｔｏｒ,
+    
+    % ==========log begin========{rabbit_amqqueue_process,145}==============
+    % {amqqueue,{resource,<<"/">>,queue,<<"data.account_log">>},
+    %           true,false,none,[],<0.4837.0>,[],[],[],undefined,undefined,[],
+    %           undefined,live,0,[],<<"/">>,
+    %           #{user => <<"guest">>},
+    %           rabbit_classic_queue,#{}}
+    
     %% pub:
     %% 后面客户端 ｐｕｂ消息时,也会 ｃａｓｔ　到这个 ａｃｔｏｒ　
     ?LOG_CHANNEL_METHOD_CALL(self()),
@@ -157,6 +165,8 @@ init(Q) ->
     {ok, init_state(amqqueue:set_pid(Q, self())), hibernate,
      {backoff, ?HIBERNATE_AFTER_MIN, ?HIBERNATE_AFTER_MIN, ?DESIRED_HIBERNATE},
     ?MODULE}.
+
+
 
 init_state(Q) ->
     SingleActiveConsumerOn = case rabbit_misc:table_lookup(amqqueue:get_arguments(Q), <<"x-single-active-consumer">>) of

@@ -3,8 +3,8 @@
 %%　第二:　启动　ranch　相关的网络包,至此将启动状态设置为　ready, 说明已经准备好接收来自客户端的连接请求了　.
 
 %% connect 
--define(LOG(X), io:format("~n==========log begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
-%%-define(LOG(X), true).
+% -define(LOG(X), io:format("~n==========log begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG(X), true).
 
 %% data receive && login
 % -define(LOG1(X), io:format("==========log begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
@@ -13,6 +13,9 @@
 
 % -define(LOG2(X), io:format("==========log begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
 -define(LOG2(X), true).
+
+-define(LOG3(X), io:format("~n==========log begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+% -define(LOG3(X), true).
 
 %% =====================================================
 %% =====================================================
@@ -73,8 +76,8 @@
 %% =====================================================
 %% =====================================================
 %% =====================================================
--define(LOG_FRAME_REQ(X), io:format("==========********log frame request ******========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
-% -define(LOG_FRAME_REQ(X), true).
+% -define(LOG_FRAME_REQ(X), io:format("==========********log frame request ******========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_FRAME_REQ(X), true).
 
 % ==========********log frame request ******========{rabbit_reader,1003}==============
 % #{'Channel' => 1,'Frame' => {method,'channel.open',<<0>>}}
@@ -82,8 +85,8 @@
 -define(LOG_CREATE_CHANNEL(X), true).
 % rabbit_pub_account_log:pub_test().
 
--define(LOG_CHANNEL_METHOD_CALL(X), io:format("==========log channel method call ========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
-% -define(LOG_CHANNEL_METHOD_CALL(X), true).
+% -define(LOG_CHANNEL_METHOD_CALL(X), io:format("==========log channel method call ========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_CHANNEL_METHOD_CALL(X), true).
 
 % ==========********log frame request ******========{rabbit_reader,1003}==============
 % #{'Channel' => 1,
