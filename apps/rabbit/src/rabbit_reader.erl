@@ -83,7 +83,7 @@
           %% pre_init | securing | running | blocking | blocked | closing | closed | {become, F}
           connection_state,
           %% see comment in rabbit_connection_sup:start_link/0
-          %%  启动这个ａｃｔｏｒ的时候,helper_sup　仅仅是一个空监督进程,下面没有启动任何子进程
+          %%  启动这个ａｃｔｏｒ的时候,helper_sup　仅仅是一个空监督进程,下面没有启动任何子进程, rabbit_connection_helper_sup
           helper_sup,
           %% takes care of cleaning up exclusive queues,
           %% see rabbit_queue_collector
@@ -172,7 +172,8 @@ shutdown(Pid, Explanation) ->
     gen_server:call(Pid, {shutdown, Explanation}, infinity).
 
 -spec init(pid(), pid(), any()) -> no_return().
-
+%%Parent : rabbit_connection_sup;
+%%HelperSup : rabbit_connection_helper_sup
 init(Parent, HelperSup, Ref) ->
     % ?LOG({Parent, HelperSup, Ref}),
     ?LG_PROCESS_TYPE(reader),
@@ -330,8 +331,9 @@ start_connection(Parent, HelperSup, Deb, Sock) ->
     erlang:send_after(HandshakeTimeout, self(), handshake_timeout),
     {PeerHost, PeerPort, Host, Port} =
         socket_op(Sock, fun (S) -> rabbit_net:socket_ends(S, inbound) end),
+
     ?store_proc_name(Name),
-    State = #v1{parent              = Parent,
+    State = #v1{parent              = Parent,  %% 所在模块:rabbit_connection_sup
                 sock                = RealSocket,
                 connection          = #connection{
                   name               = Name,
@@ -356,7 +358,7 @@ start_connection(Parent, HelperSup, Deb, Sock) ->
                 pending_recv        = false,
                 connection_state    = pre_init,
                 queue_collector     = undefined,  %% started on tune-ok
-                helper_sup          = HelperSup,
+                helper_sup          = HelperSup, %%　所在模块: rabbit_connection_helper_sup
                 heartbeater         = none,
                 channel_sup_sup_pid = none,
                 channel_count       = 0,
@@ -976,7 +978,7 @@ clean_up_all_channels(State) ->
     lists:foreach(CleanupFun, all_channels()).
 
 %%--------------------------------------------------------------------------
-
+%% 当 Channel 为 0 时, 只是处理一些与业务无关的逻辑　,主要处理连接相关的业务 ,
 handle_frame(Type, 0, Payload,
              State = #v1{connection = #connection{protocol = Protocol}})
   when ?IS_STOPPING(State) ->
@@ -997,6 +999,7 @@ handle_frame(Type, 0, Payload,
             handle_method0(MethodName, FieldsBin, State);
         _Other    -> unexpected_frame(Type, 0, Payload, State)
     end;
+%% 当 Channel 不为 0 时, 说明要开始与 Channel 进行交互了,处理与队列相关的业务 ,如声明队列, pub/sub啥的
 handle_frame(Type, Channel, Payload,
              State = #v1{connection = #connection{protocol = Protocol}})
   when ?IS_RUNNING(State) ->
@@ -1015,6 +1018,7 @@ handle_frame(Type, Channel, Payload, State) ->
     % ?LOG(here),
     unexpected_frame(Type, Channel, Payload, State).
 
+%% 当 Channel 不为 0 时, 说明要开始与 Channel 进行交互了,
 process_frame(Frame, Channel, State) ->
     %%　创建　channel 并处理  channel.open &&　queue.declare　&&　exchange.declare　&&　queue.bind
     %%  basic.publish  相关的业务逻辑.
@@ -1022,6 +1026,8 @@ process_frame(Frame, Channel, State) ->
     case (case get(ChKey) of
               undefined -> create_channel(Channel, State); 
                %% 创建 channel相关的一系列 actor 在上面这句这里触发, 只会触发一次,之后到字典里取
+                %%　一个tcp连接可以声明处理　2047　个 channel ,　配置在rabbit.app.src里,
+                %% 从这里的逻辑来看, 多个channel复用同一个tcp,将大大节约连接资源 ,
               Other     -> {ok, Other, State}
           end) of
         {error, Error} ->
@@ -1036,7 +1042,7 @@ process_frame(Frame, Channel, State) ->
                     put(ChKey, {ChPid, NewAState}),
                     post_process_frame(Frame, ChPid, State1);
                 {ok, Method, NewAState} ->
-                    ?LOG_CHANNEL_METHOD_CALL(#{'Method' => Method}),
+                    %%　?LOG_CHANNEL_METHOD_CALL(#{'Method' => Method}),
                     % ?LOG_FRAME_REQ(#{'Method' => Method, 'NewAState' => NewAState}), 
                     %% channel actor 会处理下面几条 amqp 协议, 这几条是在客户端连接后发的几个指令,
                     %% 具体参考客户端 demo 2021.12.29
@@ -1084,14 +1090,14 @@ handle_input(frame_header, <<Type:8,Channel:16,PayloadSize:32, _/binary>>,
              State = #v1{connection = #connection{frame_max = FrameMax}})
   when FrameMax /= 0 andalso
        PayloadSize > FrameMax - ?EMPTY_FRAME_SIZE + ?FRAME_SIZE_FUDGE ->
-    case Type of 
-        8 -> 
-            %% heartbeat ignore
-            ok;
-        _ ->
-            ?LOG1(#{type => Type, channel => Channel, 'PayloadSize' => PayloadSize}),
-            ok
-    end,
+%%    case Type of
+%%        8 ->
+%%            %% heartbeat ignore
+%%            ok;
+%%        _ ->
+%%            ?LOG1(#{type => Type, channel => Channel, 'PayloadSize' => PayloadSize}),
+%%            ok
+%%    end,
     fatal_frame_error(
       {frame_too_large, PayloadSize, FrameMax - ?EMPTY_FRAME_SIZE},
       Type, Channel, <<>>, State);
@@ -1099,14 +1105,14 @@ handle_input(frame_header, <<Type:8,Channel:16,PayloadSize:32,
                              Payload:PayloadSize/binary, ?FRAME_END,
                              Rest/binary>>,
              State) ->
-    case Type of 
-        8 -> 
-            %% heartbeat ignore
-            ok;
-        _ ->
-            ?LOG1(#{type => Type, channel => Channel, 'PayloadSize' => PayloadSize}),
-            ok
-    end,
+%%    case Type of
+%%        8 ->
+%%            %% heartbeat ignore
+%%            ok;
+%%        _ ->
+%%            ?LOG1(#{type => Type, channel => Channel, 'PayloadSize' => PayloadSize}),
+%%            ok
+%%    end,
     {Rest, ensure_stats_timer(handle_frame(Type, Channel, Payload, State))};
 handle_input(frame_header, <<Type:8,Channel:16,PayloadSize:32, Rest/binary>>,
              State) ->
@@ -1141,13 +1147,13 @@ handle_input({frame_payload, Type, Channel, PayloadSize}, Data, State) ->
                                         Type, Channel, Payload, State)
     end;
 handle_input(handshake, <<"AMQP", A, B, C, D, Rest/binary>>, State) ->
-    ?LOG({here, self(), A, B, C, D}),
+%%    ?LOG({here, self(), A, B, C, D}),
     {Rest, handshake({A, B, C, D}, State)};
 handle_input(handshake, <<Other:8/binary, _/binary>>, #v1{sock = Sock}) ->
-    ?LOG({here, self()}),
+%%    ?LOG({here, self()}),
     refuse_connection(Sock, {bad_header, Other});
 handle_input(Callback, Data, _State) ->
-    ?LOG({here, self()}),
+%%    ?LOG({here, self()}),
     throw({bad_input, Callback, Data}).
 
 %% The two rules pertaining to version negotiation:
@@ -1224,7 +1230,7 @@ ensure_stats_timer(State) ->
     State.
 
 %%--------------------------------------------------------------------------
-
+%%% 当 Channel 为 0 时, 修改连接 actor 的状态, 及身份认证相关的功能,处理与连接相关的功能 ,
 handle_method0(MethodName, FieldsBin,
                State = #v1{connection = #connection{protocol = Protocol}}) ->
     try
