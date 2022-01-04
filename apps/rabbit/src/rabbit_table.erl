@@ -39,7 +39,7 @@ create() ->
     ok.
 
 -spec create(mnesia_table(), list()) -> rabbit_types:ok_or_error(any()).
-
+%% 建分布式表, 由模 块 rabbit_mnesia 发起调用;
 create(TableName, TableDefinition) ->
     TableDefinition1 = proplists:delete(match, TableDefinition),
     rabbit_log:debug("Will create a schema database table '~s'", [TableName]),

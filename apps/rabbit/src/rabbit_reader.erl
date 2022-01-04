@@ -1362,6 +1362,8 @@ handle_method0(#'connection.open'{virtual_host = VHost},
     BlockedBy = sets:from_list([{resource, Alarm} || Alarm <- Alarms]),
     Throttle1 = Throttle#throttle{blocked_by = BlockedBy},
 
+    %% 每个网络连接都会通过　ｃｈａｎｎｅｌ　与队列ａｃｔｏｒ交互,一个连接可以开避多个ｃｈａｎｎｅｌ,
+    %%　让多个ｃｈａｎｎｅｌ复用一个ｔｃｐ连接,这样能大大节省连接资源,　
     {ok, ChannelSupSupPid} =
         rabbit_connection_helper_sup:start_channel_sup_sup(SupPid),
     %% 更新　connection_state    = running　等状态信息

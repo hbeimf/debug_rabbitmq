@@ -997,7 +997,7 @@ do_run_postlaunch_phase(Plugins) ->
 
         %% Start listeners after all plugins have been enabled,
         %% see rabbitmq/rabbitmq-server#2405.
-        ?LOG("start ranch XXXXXXXXXXX"),
+%%        ?LOG("start ranch XXXXXXXXXXX"),
         ?LOG_INFO("Ready to start client connection listeners"),
           %% 其它一切启动好后,再在这里启动网络,准备接收客户端的连接,　此处跟进去启动网络
         ok = rabbit_networking:boot(),
@@ -1054,6 +1054,7 @@ boot_delegate() ->
 
 -spec recover() -> 'ok'.
 
+%%启动节点时调用这个函数
 recover() ->
     ok = rabbit_policy:recover(),
     ok = rabbit_vhost:recover(),

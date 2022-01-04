@@ -9,6 +9,7 @@
 
 -include_lib("rabbit_common/include/rabbit.hrl").
 -include("vhost.hrl").
+-include_lib("glib/include/log.hrl").
 
 -export([recover/0, recover/1, read_config/1]).
 -export([add/2, add/4, delete/2, exists/1, with/2, with_user_and_vhost/3, assert/1, update/2,
@@ -49,7 +50,9 @@ recover() ->
     [ok = rabbit_vhost_sup_sup:init_vhost(VHost) || VHost <- list_names()],
     ok.
 
+%% 启动时从这里跟下去,可以一直跟到启动已经存在的队列的初始化,
 recover(VHost) ->
+%%  ?LOG_START(VHost),
     VHostDir = msg_store_dir_path(VHost),
     rabbit_log:info("Making sure data directory '~ts' for vhost '~s' exists",
                     [VHostDir, VHost]),
@@ -57,9 +60,13 @@ recover(VHost) ->
     ok = rabbit_file:ensure_dir(VHostStubFile),
     ok = file:write_file(VHostStubFile, VHost),
     ok = ensure_config_file(VHost),
-    {Recovered, Failed} = rabbit_amqqueue:recover(VHost),
+%%  ?LOG_START({VHostStubFile, VHost}),
+
+    {Recovered, Failed} = rabbit_amqqueue:recover(VHost), %% 启动时从这里跟下去,可以一直跟到启动已经存在的队列的初始化,
+%%  ?LOG_START({Recovered, Failed}),
     AllQs = Recovered ++ Failed,
     QNames = [amqqueue:get_name(Q) || Q <- AllQs],
+%%  ?LOG_START({QNames, AllQs}),
     {Time, ok} = timer:tc(fun() ->
                                   rabbit_binding:recover(rabbit_exchange:recover(VHost), QNames)
                           end),
@@ -69,6 +76,25 @@ recover(VHost) ->
     %% Start queue mirrors.
     ok = rabbit_mirror_queue_misc:on_vhost_up(VHost),
     ok.
+
+
+%%==========log start begin========{rabbit_vhost,67}==============
+%%{[{resource,<<"/">>,queue,<<"data.account_log">>}],
+%%[{amqqueue,{resource,<<"/">>,queue,<<"data.account_log">>},
+%%true,false,none,[],<0.3323.0>,[],[],[],undefined,undefined,[],
+%%undefined,live,0,[],<<"/">>,
+%%#{user => <<"guest">>},
+%%rabbit_classic_queue,#{}}]}
+
+
+
+%%==========log start begin========{rabbit_vhost,62}==============
+%%{"/var/lib/rabbitmq/mnesia/rabbit@maomao-VirtualBox/msg_stores/vhosts/628WB79CIFDYO9LJI6DKMI09L/.vhost",
+%%<<"/">>}
+
+
+%%==========log start begin========{rabbit_vhost,54}==============
+%%<<"/">>
 
 ensure_config_file(VHost) ->
     Path = config_file_path(VHost),

@@ -557,7 +557,7 @@ init_it(Starter, Parent, Name0, Mod, Args, Options) ->
     GS2State = find_prioritisers(
                  #gs2_state { parent  = Parent,
                               name    = Name,
-                              mod     = Mod,
+                              mod     = Mod, %% 回调模块初始化,
                               queue   = Queue,
                               debug   = Debug,
                               emit_stats_fun = EmitStatsFun,
@@ -584,7 +584,7 @@ init_it(Starter, Parent, Name0, Mod, Args, Options) ->
             Backoff1 = extend_backoff(Backoff),
             proc_lib:init_ack(Starter, {ok, self()}),
             loop(init_stats(find_prioritisers(
-                                GS2State#gs2_state { mod           = Mod1,
+                                GS2State#gs2_state { mod           = Mod1,  %% 当 init 有返回回调模块的时候, 回调模块就被更新了,
                                                      state         = State,
                                                      time          = Timeout,
                                                      timeout_state = Backoff1 })));

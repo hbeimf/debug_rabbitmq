@@ -53,6 +53,7 @@
 
 is_enabled() -> true.
 
+%% 初始化队列, 从 rabbit_channel 模块那边跟过来的,
 declare(Q, Node) when ?amqqueue_is_classic(Q) ->
     ?LOG_CHANNEL_METHOD_CALL(#{'Q' => Q, 'Node' => Node}),
 
@@ -122,8 +123,14 @@ is_recoverable(Q) when ?is_amqqueue(Q) ->
     (mnesia:read(rabbit_queue, amqqueue:get_name(Q), read) =:= []
      orelse not rabbit_mnesia:is_process_alive(amqqueue:get_pid(Q))).
 
+%% 启动时从这里跟下去,可以一直跟到启动已经存在的队列的初始化,
 recover(VHost, Queues) ->
+%%    ?LOG_START({VHost, Queues}),
     {ok, BQ} = application:get_env(rabbit, backing_queue_module),
+    %%  ?LOG_START(BQ),
+    %%  ==========log start begin========{rabbit_classic_queue,128}==============
+    %%rabbit_priority_queue
+
     %% We rely on BQ:start/1 returning the recovery terms in the same
     %% order as the supplied queue names, so that we can zip them together
     %% for further processing in recover_durable_queues.
@@ -131,6 +138,8 @@ recover(VHost, Queues) ->
         BQ:start(VHost, [amqqueue:get_name(Q) || Q <- Queues]),
     case rabbit_amqqueue_sup_sup:start_for_vhost(VHost) of
         {ok, _}         ->
+            %%　下面这个调用会去初始化已经存在的队列的相关的　ａｃｔｏｒ
+            %% 启动时从这里跟下去,可以一直跟到启动已经存在的队列的初始化,
             RecoveredQs = recover_durable_queues(lists:zip(Queues,
                                                            OrderedRecoveryTerms)),
             RecoveredNames = [amqqueue:get_name(Q) || Q <- RecoveredQs],
@@ -141,6 +150,15 @@ recover(VHost, Queues) ->
             rabbit_log:error("Failed to start queue supervisor for vhost '~s': ~s", [VHost, Reason]),
             throw({error, Reason})
     end.
+
+%%==========log start begin========{rabbit_classic_queue,126}==============
+%%{<<"/">>,
+%%[{amqqueue,{resource,<<"/">>,queue,<<"data.account_log">>},
+%%true,false,none,[],<0.3397.0>,[],[],[],undefined,undefined,[],
+%%undefined,live,0,[],<<"/">>,
+%%#{user => <<"guest">>},
+%%rabbit_classic_queue,#{}}]}
+
 
 -spec policy_changed(amqqueue:amqqueue()) -> ok.
 policy_changed(Q) ->
@@ -447,10 +465,11 @@ delete_crashed_internal(Q, ActingUser) ->
     BQ:delete_crashed(Q),
     ok = rabbit_amqqueue:internal_delete(QName, ActingUser).
 
+%%　系统刚启动的时候,在这里启动已经存在的队列
 recover_durable_queues(QueuesAndRecoveryTerms) ->
     {Results, Failures} =
         gen_server2:mcall(
-          [{rabbit_amqqueue_sup_sup:start_queue_process(node(), Q, recovery),
+          [{rabbit_amqqueue_sup_sup:start_queue_process(node(), Q, recovery), %%% [1] 在这里启动的
             {init, {self(), Terms}}} || {Q, Terms} <- QueuesAndRecoveryTerms]),
     [rabbit_log:error("Queue ~p failed to initialise: ~p",
                       [Pid, Error]) || {Pid, Error} <- Failures],

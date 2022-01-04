@@ -222,6 +222,7 @@ is_enabled(Type) ->
     {'new' | 'existing' | 'owner_died', amqqueue:amqqueue()} |
     {'absent', amqqueue:amqqueue(), absent_reason()} |
     {protocol_error, Type :: atom(), Reason :: string(), Args :: term()}.
+%% 初始化队列
 declare(Q0, Node) ->
     Q = rabbit_queue_decorator:set(rabbit_policy:set(Q0)),
     Mod = amqqueue:get_type(Q),
@@ -390,12 +391,62 @@ recover(VHost, Qs) ->
               end, #{rabbit_classic_queue => [],
                      rabbit_quorum_queue => [],
                      rabbit_stream_queue => []}, Qs),
+
+%%  ?LOG_START(ByType),
+
    maps:fold(fun (Mod, Queues, {R0, F0}) ->
+%%                    ?LOG_START({Mod, Queues, {R0, F0}}),
                      {Taken, {R, F}} =  timer:tc(Mod, recover, [VHost, Queues]),
                      rabbit_log:info("Recovering ~b queues of type ~s took ~bms",
                                     [length(Queues), Mod, Taken div 1000]),
                      {R0 ++ R, F0 ++ F}
              end, {[], []}, ByType).
+
+%%==========log start begin========{rabbit_queue_type,397}==============
+%%{rabbit_classic_queue,      %% 启动时从这里跟下去,可以一直跟到启动已经存在的队列的初始化,
+%%[{amqqueue,
+%%{resource,<<"/">>,queue,<<"data.account_log">>},
+%%true,false,none,[],<0.3463.0>,[],[],[],undefined,undefined,[],
+%%undefined,live,0,[],<<"/">>,
+%%#{user => <<"guest">>},
+%%rabbit_classic_queue,#{}}],
+%%{[],[]}}
+%%
+%%
+%%==========log start begin========{rabbit_queue_type,397}==============
+%%{rabbit_quorum_queue,[],
+%%{[{amqqueue,
+%%{resource,<<"/">>,queue,<<"data.account_log">>},
+%%true,false,none,[],<0.3397.0>,[],[],[],undefined,undefined,[],
+%%undefined,live,0,[],<<"/">>,
+%%#{user => <<"guest">>},
+%%rabbit_classic_queue,#{}}],
+%%[]}}
+%%
+%%
+%%==========log start begin========{rabbit_queue_type,397}==============
+%%{rabbit_stream_queue,[],
+%%{[{amqqueue,
+%%{resource,<<"/">>,queue,<<"data.account_log">>},
+%%true,false,none,[],<0.3397.0>,[],[],[],undefined,undefined,[],
+%%undefined,live,0,[],<<"/">>,
+%%#{user => <<"guest">>},
+%%rabbit_classic_queue,#{}}],
+%%[]}}
+%%
+
+
+
+
+%%==========log start begin========{rabbit_queue_type,394}==============
+%%#{rabbit_classic_queue =>
+%%[{amqqueue,{resource,<<"/">>,queue,<<"data.account_log">>},
+%%true,false,none,[],<0.3332.0>,[],[],[],undefined,undefined,
+%%[],undefined,live,0,[],<<"/">>,
+%%#{user => <<"guest">>},
+%%rabbit_classic_queue,#{}}],
+%%rabbit_quorum_queue => [],rabbit_stream_queue => []}
+
 
 -spec handle_down(pid(), term(), state()) ->
     {ok, state(), actions()} | {eol, state(), queue_ref()} | {error, term()}.

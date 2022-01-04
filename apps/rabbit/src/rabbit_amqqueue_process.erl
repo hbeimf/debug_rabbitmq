@@ -141,8 +141,10 @@ statistics_keys() -> ?STATISTICS_KEYS ++ rabbit_backing_queue:info_keys().
 
 %%----------------------------------------------------------------------------
 
+%% 此处被  rabbit_prequeue 模块所调用, 并且返回的时候将 rabbit_prequeue 所在 actor 的回调模块修改成了本模块,
+%%也就是说本该由 rabbit_prequeue 这个工作 actor 收到的消息将被 gen_server2 路由到本模块来处理.
 init(Q) ->
-    % ?LOG3(Q),
+%%    ?LOG3(Q),
     process_flag(trap_exit, true),
     %% 经过跟踪, 这个 ａｃｔｏｒ　就是客户端发送 'queue.declare' 协议时所生成的 ａｃｔｏｒ,
     
@@ -162,9 +164,30 @@ init(Q) ->
     %%　转到了下面的　ｈａｎｄｌｅ_ｃａｌｌ　里去了,　搜索　amqp_channel:subscribe　就能跳到相应的逻辑附近,　
 
   ?store_proc_name(amqqueue:get_name(Q)),
-    {ok, init_state(amqqueue:set_pid(Q, self())), hibernate,
+
+    Return = {ok, init_state(amqqueue:set_pid(Q, self())), hibernate,
      {backoff, ?HIBERNATE_AFTER_MIN, ?HIBERNATE_AFTER_MIN, ?DESIRED_HIBERNATE},
-    ?MODULE}.
+    ?MODULE},
+%% 正是上面这个 ?MODULE 的返回使 gen_server2 将回调模块转到这个模块的, 如果不是这样的返回,回调本该是 rabbit_prequeue 模块.
+%   ?LOG_START(Return),
+    Return.
+
+% ==========log start begin========{rabbit_amqqueue_process,172}==============
+% {ok,{q,{amqqueue,{resource,<<"/">>,queue,<<"data.account_log">>},
+%                  true,false,none,[],<0.3334.0>,[],[],[],undefined,undefined,
+%                  [],undefined,live,0,[],<<"/">>,
+%                  #{user => <<"guest">>},
+%                  rabbit_classic_queue,#{}},
+%        none,false,undefined,undefined,
+%        {state,{queue,[],[],0},{active,-576460745441733,1.0}},
+%        undefined,undefined,undefined,undefined,
+%        {state,none,5000,undefined},
+%        #{},undefined,undefined,undefined, 
+%        {state,#{},delegate},
+%        undefined,undefined,undefined,undefined,'drop-head',0,0,running,false},
+%     hibernate,
+%     {backoff,1000,1000,10000},
+%     rabbit_amqqueue_process}
 
 
 
@@ -670,6 +693,7 @@ discard(#delivery{confirm = Confirm,
     BQS1 = BQ:discard(MsgId, SenderPid, Flow, BQS),
     {BQS1, MTC1}.
 
+%% 这里冒似是将消息下发给　Ｓｕｂ　端
 run_message_queue(State) -> run_message_queue(false, State).
 
 run_message_queue(ActiveConsumersChanged, State) ->
@@ -680,6 +704,7 @@ run_message_queue(ActiveConsumersChanged, State) ->
                         qname(State), State#q.consumers,
                         State#q.single_active_consumer_on, State#q.active_consumer) of
                      {delivered, ActiveConsumersChanged1, State1, Consumers} ->
+                          %%　当下发成功后,继续下发
                          run_message_queue(
                            ActiveConsumersChanged or ActiveConsumersChanged1,
                            State1#q{consumers = Consumers});
@@ -876,6 +901,8 @@ requeue_and_run(AckTags, State = #q{backing_queue       = BQ,
 
 fetch(AckRequired, State = #q{backing_queue       = BQ,
                               backing_queue_state = BQS}) ->
+    ?LOG_SUB(BQ),
+
     {Result, BQS1} = BQ:fetch(AckRequired, BQS),
     State1 = drop_expired_msgs(State#q{backing_queue_state = BQS1}),
     {Result, maybe_send_drained(Result =:= empty, State1)}.
@@ -1348,8 +1375,9 @@ handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
             _From, State = #q{consumers             = Consumers,
                               active_consumer = Holder,
                               single_active_consumer_on = SingleActiveConsumerOn}) ->
-    ?LOG_CHANNEL_METHOD_CALL(here), %% amqp_channel:subscribe(Channel, #'basic.consume'{queue = Queue, no_ack = false}, self()), 客户端的这句调用转到了这里,　
+    ?LOG_SUB(here), %% amqp_channel:subscribe(Channel, #'basic.consume'{queue = Queue, no_ack = false}, self()), 客户端的这句调用转到了这里,　
     %%　声明一个消费者转到了这里,
+%%  ?LOG_SUB(BQ),
     ConsumerRegistration = case SingleActiveConsumerOn of
         true ->
             case ExclusiveConsume of
@@ -1391,7 +1419,7 @@ handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
                                     active_consumer    = ExclusiveConsumer}}
             end
     end,
-    ?LOG_CHANNEL_METHOD_CALL(#{'ConsumerRegistration' => ConsumerRegistration}),
+    ?LOG_SUB(#{'ConsumerRegistration' => ConsumerRegistration}),
     case ConsumerRegistration of
         {error, Reply} ->
             Reply;
@@ -1400,7 +1428,7 @@ handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
             QName = qname(State1),
             AckRequired = not NoAck,
             TheConsumer = rabbit_queue_consumers:get(ChPid, ConsumerTag, State1#q.consumers),
-            ?LOG_CHANNEL_METHOD_CALL(#{'ChPid' => ChPid, 'OkMsg' => OkMsg, 'QName' => QName, 'AckRequired' => AckRequired, 'TheConsumer' => TheConsumer}),
+            ?LOG_SUB(#{'ChPid' => ChPid, 'OkMsg' => OkMsg, 'QName' => QName, 'AckRequired' => AckRequired, 'TheConsumer' => TheConsumer}),
 
             {ConsumerIsActive, ActivityStatus} =
                 case {SingleActiveConsumerOn, State1#q.active_consumer} of

@@ -11,6 +11,7 @@
 -module(rabbit_vhost_sup_wrapper).
 
 -include_lib("rabbit_common/include/rabbit.hrl").
+-include_lib("glib/include/log.hrl").
 
 -behaviour(supervisor2).
 -export([init/1]).
@@ -18,16 +19,24 @@
 -export([start_vhost_sup/1]).
 
 start_link(VHost) ->
+%%  ?LOG_START({VHost, self()}),
     %% Using supervisor, because supervisor2 does not stop a started child when
     %% another one fails to start. Bug?
     case rabbit_vhost_sup_sup:get_vhost_sup(VHost) of
         {ok, Pid}  ->
+%%          ?LOG_START(Pid),
             {error, {already_started, Pid}};
         {error, _} ->
+%%          ?LOG_START(VHost),
             supervisor:start_link(?MODULE, [VHost])
     end.
 
+%%==========log start begin========{rabbit_vhost_sup_wrapper,22}==============
+%%<<"/">>
+
+
 init([VHost]) ->
+%%  ?LOG_START(VHost),
     %% 2 restarts in 5 minutes. One per message store.
     {ok, {{one_for_all, 2, 300},
         [
@@ -40,6 +49,7 @@ init([VHost]) ->
         %% rabbit_vhost_process is a vhost identity process, which
         %% is responsible for data recovery and vhost aliveness status.
         %% See the module comments for more info.
+          %% 启动时从这里跟下去,可以一直跟到启动已经存在的队列的初始化,
          {rabbit_vhost_process,
           {rabbit_vhost_process, start_link, [VHost]},
            permanent, ?WORKER_WAIT, worker,
@@ -47,6 +57,7 @@ init([VHost]) ->
 
 
 start_vhost_sup(VHost) ->
+%%  ?LOG_START(VHost),
      case rabbit_vhost_sup:start_link(VHost) of
         {ok, Pid} ->
             %% Save vhost sup record with wrapper pid and vhost sup pid.
@@ -55,3 +66,6 @@ start_vhost_sup(VHost) ->
         Other ->
             Other
     end.
+%%
+%%==========log start begin========{rabbit_vhost_sup_wrapper,59}==============
+%%<<"/">>

@@ -94,6 +94,7 @@ recover() ->
 -spec recover([rabbit_exchange:name()], [rabbit_amqqueue:name()]) ->
                         'ok'.
 recover(XNames, QNames) ->
+%%  ?LOG_START({XNames, QNames}),
     XNameSet = sets:from_list(XNames),
     QNameSet = sets:from_list(QNames),
     SelectSet = fun (#resource{kind = exchange}) -> XNameSet;
@@ -106,6 +107,19 @@ recover(XNames, QNames) ->
     empty = gatherer:out(Gatherer),
     ok = gatherer:stop(Gatherer),
     ok.
+
+%%==========log start begin========{rabbit_binding,97}==============
+%%{[{resource,<<"/">>,exchange,<<"account_log">>},
+%%{resource,<<"/">>,exchange,<<"amq.match">>},
+%%{resource,<<"/">>,exchange,<<"amq.rabbitmq.trace">>},
+%%{resource,<<"/">>,exchange,<<"amq.direct">>},
+%%{resource,<<"/">>,exchange,<<"amq.headers">>},
+%%{resource,<<"/">>,exchange,<<"amq.fanout">>},
+%%{resource,<<"/">>,exchange,<<"amq.topic">>},
+%%{resource,<<"/">>,exchange,<<>>}],
+%%[{resource,<<"/">>,queue,<<"data.account_log">>}]}
+%%
+
 
 recover_semi_durable_route(Gatherer, R = #route{binding = B}, ToRecover) ->
     #binding{source = Src, destination = Dst} = B,

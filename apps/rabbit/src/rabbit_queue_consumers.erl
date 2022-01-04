@@ -204,15 +204,15 @@ send_drained() -> [update_ch_record(send_drained(C)) || C <- all_ch_record()],
                      {'undelivered', boolean(), state()}.
 
 deliver(FetchFun, QName, State, SingleActiveConsumerIsOn, ActiveConsumer) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'FetchFun' => FetchFun, 'QName' => QName, 'State' => State, 'SingleActiveConsumerIsOn' => SingleActiveConsumerIsOn, 'ActiveConsumer' => ActiveConsumer}),
+    ?LOG_SUB(#{'FetchFun' => FetchFun, 'QName' => QName, 'State' => State, 'SingleActiveConsumerIsOn' => SingleActiveConsumerIsOn, 'ActiveConsumer' => ActiveConsumer}),
     deliver(FetchFun, QName, false, State, SingleActiveConsumerIsOn, ActiveConsumer).
 
 deliver(_FetchFun, _QName, false, State, true, none) ->
-    ?LOG_CHANNEL_METHOD_CALL(here),
+    ?LOG_SUB(here),
     {undelivered, false,
         State#state{use = update_use(State#state.use, inactive)}};
 deliver(FetchFun, QName, false, State = #state{consumers = Consumers}, true, SingleActiveConsumer) ->
-    ?LOG_CHANNEL_METHOD_CALL(here),
+    ?LOG_SUB(here),
     {ChPid, Consumer} = SingleActiveConsumer,
     %% blocked (rate/prefetch limited) consumers are removed from the queue state, but not the exclusive_consumer field,
     %% so we need to do this check to avoid adding the exclusive consumer to the channel record
@@ -233,28 +233,30 @@ deliver(FetchFun, QName, false, State = #state{consumers = Consumers}, true, Sin
     end;
 deliver(FetchFun, QName, ConsumersChanged,
     State = #state{consumers = Consumers}, false, _SingleActiveConsumer) ->
-    ?LOG_CHANNEL_METHOD_CALL(here),
+    ?LOG_SUB(here),
     %% 没有消费者的时候发布消息执行到了这里,
     case priority_queue:out_p(Consumers) of
         {empty, _} ->
-            ?LOG_CHANNEL_METHOD_CALL(here),
+            ?LOG_SUB(here),
             {undelivered, ConsumersChanged,
              State#state{use = update_use(State#state.use, inactive)}};
         {{value, QEntry, Priority}, Tail} ->
-            ?LOG_CHANNEL_METHOD_CALL(here),
+            ?LOG_SUB(here),
             case deliver_to_consumer(FetchFun, QEntry, QName) of
                 {delivered, R} ->
+                    ?LOG_SUB(R),
                     {delivered, ConsumersChanged, R,
                      State#state{consumers = priority_queue:in(QEntry, Priority,
                                                                Tail)}};
                 undelivered ->
-                    ?LOG_CHANNEL_METHOD_CALL(here),
+                    ?LOG_SUB(here),
                     deliver(FetchFun, QName, true,
                             State#state{consumers = Tail}, false, _SingleActiveConsumer)
             end
     end.
 
 deliver_to_consumer(FetchFun, E = {ChPid, Consumer}, QName) ->
+  ?LOG_SUB(here),
     C = lookup_ch(ChPid),
     case is_ch_blocked(C) of
         true  ->
@@ -280,7 +282,9 @@ deliver_to_consumer(FetchFun,
                             acktags              = ChAckTags,
                             unsent_message_count = Count},
                     QName) ->
+%%  ?LOG_SUB(here),
     {{Message, IsDelivered, AckTag}, R} = FetchFun(AckRequired),
+  ?LOG_SUB({Message, IsDelivered, AckTag}),
     rabbit_channel:deliver(ChPid, CTag, AckRequired,
                            {QName, self(), AckTag, IsDelivered, Message}),
     ChAckTags1 = case AckRequired of

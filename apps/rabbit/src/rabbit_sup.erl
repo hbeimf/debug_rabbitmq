@@ -67,10 +67,17 @@ start_supervisor_child(Mod, Args) -> start_supervisor_child(Mod, Mod, Args).
 
 start_supervisor_child(ChildId, Mod, Args) ->
     % ?LOG2(#{'ChildId' => ChildId, 'Mod' => Mod, 'Args' => Args, pid => self(), pid_info => glib_tool:pid_info(self())}),
+%%    ?LOG_START(#{'ChildId' => ChildId, 'Mod'=>Mod, 'Args' => Args}),
+
     child_reply(supervisor:start_child(
                   ?SERVER,
                   {ChildId, {Mod, start_link, Args},
                    transient, infinity, supervisor, [Mod]})).
+
+%%==========log start begin========{rabbit_sup,70}==============
+%%#{'Args' =>
+%%[{local,rabbit_direct_client_sup},{rabbit_channel_sup,start_link,[]}],
+%%'ChildId' => rabbit_direct_client_sup,'Mod' => rabbit_client_sup}
 
 -spec start_restartable_child(atom()) -> 'ok'.
 

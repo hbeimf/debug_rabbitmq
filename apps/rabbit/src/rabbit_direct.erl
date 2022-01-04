@@ -25,6 +25,7 @@
 
 -spec boot() -> 'ok'.
 
+%%系统启动时调用到这里
 boot() -> rabbit_sup:start_supervisor_child(
             rabbit_direct_client_sup, rabbit_client_sup,
             [{local, rabbit_direct_client_sup},

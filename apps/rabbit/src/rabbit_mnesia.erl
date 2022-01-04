@@ -64,6 +64,7 @@
 
 -spec init() -> 'ok'.
 
+%%节点启动的时候调用这里,
 init() ->
     ensure_mnesia_running(),
     ensure_mnesia_dir(),
@@ -77,7 +78,7 @@ init() ->
             init_with_lock();
         false ->
             NodeType = node_type(),
-            ?LOG2(NodeType),  % disc
+            %% ?LOG2(NodeType),  % disc
             init_db_and_upgrade(cluster_nodes(all), NodeType,
                                 NodeType =:= ram, _Retry = true),
             rabbit_peer_discovery:maybe_init(),
@@ -839,6 +840,7 @@ create_schema() ->
     
     rabbit_log:debug("Will create schema database tables"),
     ?LOG2(xx),
+    %% 建分布式表
     ok = rabbit_table:create(),
     rabbit_log:debug("Created schema database tables successfully"),
     rabbit_log:debug("Will check schema database integrity..."),

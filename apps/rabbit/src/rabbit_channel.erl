@@ -299,8 +299,31 @@ send_command(Pid, Msg) ->
 -spec deliver
         (pid(), rabbit_types:ctag(), boolean(), rabbit_amqqueue:qmsg()) -> 'ok'.
 
+%% 消息下发到消费端经过这里
 deliver(Pid, ConsumerTag, AckRequired, Msg) ->
+    ?LOG_SUB(#{'Pid' => Pid, 'ConsumerTag' => ConsumerTag, 'AckRequired' => AckRequired, 'Msg' => Msg}),
     gen_server2:cast(Pid, {deliver, ConsumerTag, AckRequired, Msg}).
+
+% ==========log LOG_SUB begin========{rabbit_channel,304}==============
+% #{'AckRequired' => true,
+%     'ConsumerTag' => <<"amq.ctag-JDxAutD791fRQeHqR4jadA">>,
+%     'Msg' =>
+%         {{resource,<<"/">>,queue,<<"data.account_log">>},
+%         <0.3335.0>,0,false,
+%         {basic_message,
+%             {resource,<<"/">>,exchange,<<"account_log">>},
+%             [<<>>],
+%             {content,60,
+%                 {'P_basic',undefined,undefined,undefined,undefined,undefined,
+%                     undefined,undefined,undefined,undefined,undefined,
+%                     undefined,undefined,undefined,undefined},
+%                 <<0,0>>,
+%                 rabbit_framing_amqp_0_9_1,
+%                 [<<"{\"id\":1}">>]},
+%             <<41,8,166,110,23,182,25,26,155,221,130,170,24,232,36,24>>,
+%             false}},
+%     'Pid' => <0.3416.0>}
+    
 
 -spec deliver_reply(binary(), rabbit_types:delivery()) -> 'ok'.
 
@@ -693,8 +716,29 @@ handle_cast({deliver, _CTag, _AckReq, _Msg},
             State = #ch{cfg = #conf{state = closing}}) ->
     noreply(State);
 handle_cast({deliver, ConsumerTag, AckRequired, Msg}, State) ->
+    ?LOG_SUB(#{'ConsumerTag' => ConsumerTag, 'AckRequired' => AckRequired, 'Msg' => Msg}),
     % TODO: handle as action
     noreply(handle_deliver(ConsumerTag, AckRequired, Msg, State));
+
+%%==========log LOG_SUB begin========{rabbit_channel,719}==============
+%%#{'AckRequired' => true,
+%%'ConsumerTag' => <<"amq.ctag-ygskk1E7Ov5zzuKg94P0zg">>,
+%%'Msg' =>
+%%        {{resource,<<"/">>,queue,<<"data.account_log">>},
+%%        <0.3335.0>,0,false,
+%%        {basic_message,
+%%        {resource,<<"/">>,exchange,<<"account_log">>},
+%%        [<<>>],
+%%        {content,60,
+%%        {'P_basic',undefined,undefined,undefined,undefined,undefined,
+%%        undefined,undefined,undefined,undefined,undefined,
+%%        undefined,undefined,undefined,undefined},
+%%        <<0,0>>,
+%%        rabbit_framing_amqp_0_9_1,
+%%        [<<"{\"id\":1}">>]},
+%%        <<252,185,61,49,210,79,120,10,107,248,14,68,199,56,93,156>>,
+%%        false}}}
+
 
 handle_cast({deliver_reply, _K, _Del},
             State = #ch{cfg = #conf{state = closing}}) ->
@@ -2030,6 +2074,7 @@ internal_reject(Requeue, Acked, Limiter,
     ok = notify_limiter(Limiter, Acked),
     {State#ch{queue_states = QueueStates}, Actions}.
 
+%% 下发消息给消费端
 record_sent(Type, QueueType, Tag, AckRequired,
             Msg = {QName, _QPid, MsgId, Redelivered, _Message},
             State = #ch{cfg = #conf{channel = ChannelNum,
@@ -2826,6 +2871,7 @@ handle_method(#'exchange.declare'{exchange    = ExchangeNameBin,
     check_not_default_exchange(ExchangeName),
     _ = rabbit_exchange:lookup_or_die(ExchangeName).
 
+%% 下发消息给消费端
 handle_deliver(CTag, Ack, Msgs, State) when is_list(Msgs) ->
     lists:foldl(fun(Msg, S) ->
                         handle_deliver0(CTag, Ack, Msg, S)
@@ -2834,6 +2880,7 @@ handle_deliver(CTag, Ack, Msg, State) ->
     %% backwards compatibility clause
     handle_deliver0(CTag, Ack, Msg, State).
 
+%% 下发消息给消费端
 handle_deliver0(ConsumerTag, AckRequired,
                 Msg = {QName, QPid, _MsgId, Redelivered,
                       #basic_message{exchange_name = ExchangeName,
@@ -2843,6 +2890,8 @@ handle_deliver0(ConsumerTag, AckRequired,
                                        writer_gc_threshold = GCThreshold},
                            next_tag   = DeliveryTag,
                            queue_states = Qs}) ->
+    ?LOG_SUB(here),
+
     Deliver = #'basic.deliver'{consumer_tag = ConsumerTag,
                                delivery_tag = DeliveryTag,
                                redelivered  = Redelivered,

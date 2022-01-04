@@ -35,6 +35,9 @@
 -spec start_link(amqqueue:amqqueue(), start_mode(), pid())
                       -> rabbit_types:ok_pid_or_error().
 
+%% 这里启动一个 gen_server2 ; 用来处理队列的具体业务逻辑,
+%%在启动的时候利用初始化函数 init 的返回参数修改了actor的回调逻辑, 由本模块转变成了: rabbit_amqqueue_process
+%% 具体看看 gen_server2 的启动逻辑就明白了,
 start_link(Q, StartMode, Marker) ->
     gen_server2:start_link(?MODULE, {Q, StartMode, Marker}, []).
 
@@ -47,8 +50,23 @@ init({Q, StartMode, Marker}) ->
                 {false, _}     -> restart
             end).
 
-init(Q, master) -> rabbit_amqqueue_process:init(Q);
-init(Q, slave)  -> rabbit_mirror_queue_slave:init(Q);
+init(Q, master) ->
+%%  ?LOG_START(#{'Q' => Q}),
+%%  ==========log start begin========{rabbit_prequeue,51}==============
+%%#{'Q' =>
+%%    {amqqueue,{resource,<<"/">>,queue,<<"data.account_log">>},
+%%    true,false,none,[],<0.3335.0>,[],[],[],undefined,undefined,[],
+%%    undefined,live,0,[],<<"/">>,
+%%    #{user => <<"guest">>},
+%%    rabbit_classic_queue,#{}}}
+
+  %% 当 init 返回第五个参数时, 回调模块就会由当前的回调模块变成新的返回的回调模块代替, 这是因为 gen_server2 里有这个逻辑 mod => Mod1,
+  %% 这里的返回 将回调模块更新成了: rabbit_amqqueue_process
+
+  rabbit_amqqueue_process:init(Q);
+init(Q, slave)  ->
+%%  ?LOG_START(#{'Q' => Q}),
+  rabbit_mirror_queue_slave:init(Q);
 
 init(Q0, restart) when ?is_amqqueue(Q0) ->
     QueueName = amqqueue:get_name(Q0),
@@ -86,14 +104,16 @@ crash_restart(Q0) when ?is_amqqueue(Q0) ->
     rabbit_amqqueue_process:init(Q1).
 
 %%----------------------------------------------------------------------------
+%% gen_server2 把回调的方式做了调整,　会去回调　rabbit_amqqueue_process　这个模块里的回调函数
+%% 所以这下面只有函数签名,却并无具体的实现逻辑 ,
 
 %% This gen_server2 always hands over to some other module at the end
 %% of init/1.
 -spec handle_call(_, _, _) -> no_return().
 handle_call(_Msg, _From, _State)     -> exit(unreachable).
 -spec handle_cast(_, _) -> no_return().
-handle_cast(Msg, _State)            -> 
-    ?LOG1(Msg),
+handle_cast(_Msg, _State)            ->
+%%    ?LOG1(Msg),
     exit(unreachable).
 -spec handle_info(_, _) -> no_return().
 handle_info(_Msg, _State)            -> exit(unreachable).

@@ -8,6 +8,7 @@
 -module(rabbit_vhost_sup_sup).
 
 -include_lib("rabbit_common/include/rabbit.hrl").
+-include_lib("glib/include/log.hrl").
 
 -behaviour(supervisor2).
 
@@ -41,6 +42,7 @@ start_link() ->
     supervisor2:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
+%%  ?LOG_START({here, self()}),
     %% This assumes that a single vhost termination should not shut down nodes
     %% unless the operator opts in.
     RestartStrategy = vhost_restart_strategy(),

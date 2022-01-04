@@ -36,6 +36,7 @@
 %% API
 %%----------------------------------------------------------------------------
 
+%%系统启动时调用到这里
 boot() ->
   seed_internal_cluster_id(),
   seed_user_provided_cluster_name().

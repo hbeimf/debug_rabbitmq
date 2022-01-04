@@ -17,6 +17,16 @@
 -define(LOG3(X), io:format("~n==========log begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
 % -define(LOG3(X), true).
 
+
+-define(LOG_START(X), io:format("~n==========log start begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+% -define(LOG_START(X), true).
+
+-define(LOG_CLIENT_REQ(X), io:format("~n==========log LOG_CLIENT_REQ begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+% -define(LOG_CLIENT_REQ(X), true).
+
+-define(LOG_SUB(X), io:format("~n==========log LOG_SUB begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+% -define(LOG_SUB(X), true).
+
 %% =====================================================
 %% =====================================================
 %% =====================================================

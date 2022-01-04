@@ -124,9 +124,11 @@ warn_file_limit() ->
 -spec recover(rabbit_types:vhost()) ->
     {Recovered :: [amqqueue:amqqueue()],
      Failed :: [amqqueue:amqqueue()]}.
+%% 节点启动时调用到这里,从 ｒａｂｂｉｔ_ｖｈｏｓｔ过来的,
 recover(VHost) ->
     AllDurable = find_local_durable_queues(VHost),
-    rabbit_queue_type:recover(VHost, AllDurable).
+%%  ?LOG_START({AllDurable, VHost}),
+    rabbit_queue_type:recover(VHost, AllDurable). %% 启动时从这里跟下去,可以一直跟到启动已经存在的队列的初始化,
 
 filter_pid_per_type(QPids) ->
     lists:partition(fun(QPid) -> ?IS_CLASSIC(QPid) end, QPids).
@@ -150,6 +152,7 @@ stop(VHost) ->
 -spec start([amqqueue:amqqueue()]) -> 'ok'.
 
 start(Qs) ->
+%%  ?LOG_START(Qs),
     %% At this point all recovered queues and their bindings are
     %% visible to routing, so now it is safe for them to complete
     %% their initialisation (which may involve interacting with other
@@ -202,6 +205,7 @@ find_recoverable_queues() ->
     {'new', amqqueue:amqqueue(), rabbit_fifo_client:state()} |
     {'absent', amqqueue:amqqueue(), absent_reason()} |
     {protocol_error, Type :: atom(), Reason :: string(), Args :: term()}.
+%% 初始化队列, 这里是被rabbit_channel模块 2704 行左右 调用  'queue.declare' ;
 declare(QueueName, Durable, AutoDelete, Args, Owner, ActingUser) ->
     ?LOG_CHANNEL_METHOD_CALL(#{'QueueName' => QueueName, 'Durable' => Durable, 'AutoDelete' => AutoDelete, 'Args' => Args, 'Owner' => Owner, 'ActingUser' => ActingUser}),
     declare(QueueName, Durable, AutoDelete, Args, Owner, ActingUser, node()).
@@ -221,6 +225,7 @@ declare(QueueName, Durable, AutoDelete, Args, Owner, ActingUser) ->
     {'new' | 'existing' | 'owner_died', amqqueue:amqqueue()} |
     {'absent', amqqueue:amqqueue(), absent_reason()} |
     {protocol_error, Type :: atom(), Reason :: string(), Args :: term()}.
+%% 初始化队列
 declare(QueueName = #resource{virtual_host = VHost}, Durable, AutoDelete, Args,
         Owner, ActingUser, Node) ->
     ok = check_declare_arguments(QueueName, Args),

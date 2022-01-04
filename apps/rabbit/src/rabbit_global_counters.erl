@@ -126,6 +126,7 @@
                 }
             ]).
 
+%% 节点启动时,调用这里启动子业务,
 boot_step() ->
     init([{protocol, amqp091}]),
     init([{protocol, amqp091}, {queue_type, rabbit_classic_queue}]),

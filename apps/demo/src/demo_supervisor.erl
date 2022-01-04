@@ -9,7 +9,8 @@
 -module(demo_supervisor).
 -author("maomao").
 
--behaviour(supervisor).
+%%-behaviour(supervisor).
+-behaviour(supervisor2).
 
 %% API
 -export([start_link/0]).
@@ -26,7 +27,7 @@
 %% @doc Starts the supervisor
 -spec(start_link() -> {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
-  supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+  supervisor2:start_link({local, ?SERVER}, ?MODULE, []).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -49,15 +50,30 @@ init([]) ->
     intensity => MaxRestarts,
     period => MaxSecondsBetweenRestarts},
 
-  AChild = #{id => 'AName',
-    start => {'AModule', start_link, []},
-    restart => permanent,
-    shutdown => 2000,
-    type => worker,
-    modules => ['AModule']},
+%%  AChild = #{id => 'AName',
+%%    start => {'AModule', start_link, []},
+%%    restart => permanent,
+%%    shutdown => 2000,
+%%    type => worker,
+%%    modules => ['AModule']},
 
-  {ok, {SupFlags, [AChild]}}.
+%%  {ok, {SupFlags, [AChild]}}.
+  Children = children(),
+  {ok, {SupFlags, Children}}.
+
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+children() ->
+  [
+    child(demo_actor)
+  ].
+
+child(Mod) ->
+  #{id => Mod,
+    start => {Mod, start_link, []},
+    restart => permanent,
+    shutdown => 2000,
+    type => worker,
+    modules => [Mod]}.

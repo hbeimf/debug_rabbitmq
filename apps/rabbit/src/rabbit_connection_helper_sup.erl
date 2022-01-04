@@ -35,6 +35,8 @@ start_link() ->
 
 -spec start_channel_sup_sup(pid()) -> rabbit_types:ok_pid_or_error().
 
+%% 'connection.open' 刚建立ｔｃｐ连接就初始化一个 ｃｈａｎｎｅｌ　督程
+%% 多个channel 将会复用同一个tcp连接
 start_channel_sup_sup(SupPid) ->
     supervisor2:start_child(
           SupPid,

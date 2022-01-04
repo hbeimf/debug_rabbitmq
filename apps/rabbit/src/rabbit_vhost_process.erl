@@ -26,6 +26,7 @@
 -compile(nowarn_deprecated_function).
 
 -include_lib("rabbit_common/include/rabbit.hrl").
+-include_lib("glib/include/log.hrl").
 
 -define(TICKTIME_RATIO, 4).
 
@@ -38,13 +39,14 @@
 start_link(VHost) ->
     gen_server2:start_link(?MODULE, [VHost], []).
 
-
+%% 启动时从这里跟下去,可以一直跟到启动已经存在的队列的初始化,
 init([VHost]) ->
+%%    ?LOG_START(VHost),
     process_flag(trap_exit, true),
     rabbit_log:debug("Recovering data for VHost ~p", [VHost]),
     try
         %% Recover the vhost data and save it to vhost registry.
-        ok = rabbit_vhost:recover(VHost),
+        ok = rabbit_vhost:recover(VHost),       %% 启动时从这里跟下去,可以一直跟到启动已经存在的队列的初始化,
         rabbit_vhost_sup_sup:save_vhost_process(VHost, self()),
         Interval = interval(),
         timer:send_interval(Interval, check_vhost),
@@ -57,6 +59,10 @@ init([VHost]) ->
                          [VHost, Reason, Stacktrace]),
         {stop, Reason}
     end.
+
+%%==========log start begin========{rabbit_vhost_process,44}==============
+%%<<"/">>
+
 
 handle_call(_,_,VHost) ->
     {reply, ok, VHost}.

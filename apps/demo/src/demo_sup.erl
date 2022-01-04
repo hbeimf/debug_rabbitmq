@@ -25,11 +25,36 @@ start_link() ->
 %%                  shutdown => shutdown(), % optional
 %%                  type => worker(),       % optional
 %%                  modules => modules()}   % optional
-init([]) ->
-    SupFlags = #{strategy => one_for_all,
-                 intensity => 0,
-                 period => 1},
-    ChildSpecs = [],
-    {ok, {SupFlags, ChildSpecs}}.
+%%init([]) ->
+%%    SupFlags = #{strategy => one_for_all,
+%%                 intensity => 0,
+%%                 period => 1},
+%%    ChildSpecs = [],
+%%    {ok, {SupFlags, ChildSpecs}}.
+%%
+%%%% internal functions
 
-%% internal functions
+init([]) ->
+  Children = children(),
+
+  {ok, { {one_for_one, 10, 10}, Children} }.
+%%====================================================================
+%% Internal functions
+%%====================================================================
+children() ->
+  [
+    child_sup(demo_supervisor)
+    % , child(glib_cluster_actor)
+    % , child(glib_memory_actor)
+  ].
+
+
+%%child(Mod) ->
+%%  Child = {Mod, {Mod, start_link, []},
+%%    permanent, 5000, worker, [Mod]},
+%%  Child.
+
+child_sup(Mod) ->
+  Child = {Mod, {Mod, start_link, []},
+    permanent, 5000, supervisor, [Mod]},
+  Child.

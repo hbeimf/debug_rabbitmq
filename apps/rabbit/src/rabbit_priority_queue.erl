@@ -10,6 +10,7 @@
 -include_lib("rabbit_common/include/rabbit.hrl").
 -include_lib("rabbit_common/include/rabbit_framing.hrl").
 -include("amqqueue.hrl").
+-include_lib("glib/include/log.hrl").
 
 -behaviour(rabbit_backing_queue).
 
@@ -77,13 +78,31 @@ enable() ->
 %%----------------------------------------------------------------------------
 
 start(VHost, QNames) ->
+    %%  ?LOG_START({VHost, QNames}),
+    %%  ==========log start begin========{rabbit_priority_queue,81}==============
+    %%{<<"/">>,[{resource,<<"/">>,queue,<<"data.account_log">>}]}
+
     BQ = bq(),
+    %%  ?LOG_START(BQ),
+    %%  ==========log start begin========{rabbit_priority_queue,86}==============
+    %%rabbit_variable_queue
+
+
     %% TODO this expand-collapse dance is a bit ridiculous but it's what
     %% rabbit_amqqueue:recover/0 expects. We could probably simplify
     %% this if we rejigged recovery a bit.
     {DupNames, ExpNames} = expand_queues(QNames),
+    %%  ?LOG_START({DupNames, ExpNames}),
+    %%  ==========log start begin========{rabbit_priority_queue,92}==============
+    %%{[{resource,<<"/">>,queue,<<"data.account_log">>}],
+    %%[{resource,<<"/">>,queue,<<"data.account_log">>}]}
+
+
     case BQ:start(VHost, ExpNames) of
         {ok, ExpRecovery} ->
+        %%  ?LOG_START(ExpRecovery),
+        %%  ==========log start begin========{rabbit_priority_queue,96}==============
+        %%  [non_clean_shutdown]
             {ok, collapse_recovery(QNames, DupNames, ExpRecovery)};
         Else ->
             Else

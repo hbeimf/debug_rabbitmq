@@ -8,6 +8,7 @@
 -module(rabbit_vhost_sup).
 
 -include_lib("rabbit_common/include/rabbit.hrl").
+-include_lib("glib/include/log.hrl").
 
 %% Each vhost gets an instance of this supervisor that supervises
 %% message stores and queues (via rabbit_amqqueue_sup_sup).
@@ -16,6 +17,7 @@
 -export([start_link/1]).
 
 start_link(VHost) ->
+%%    ?LOG_START({here, self()}),
     supervisor2:start_link(?MODULE, [VHost]).
 
 init([_VHost]) ->

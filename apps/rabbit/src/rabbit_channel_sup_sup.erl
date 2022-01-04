@@ -25,6 +25,9 @@
 
 -spec start_link() -> rabbit_types:ok_pid_or_error().
 
+%% 'connection.open' 刚建立ｔｃｐ连接就初始化一个 ｃｈａｎｎｅｌ　督程
+%% 多个channel 将会复用同一个tcp连接
+%% 一个连接上可以有 2047 个 channel, 写在 rabbit.app.src里的 channel_max 配置项里
 start_link() ->
     supervisor2:start_link(?MODULE, []).
 
@@ -32,8 +35,8 @@ start_link() ->
           {'ok', pid(), {pid(), any()}}.
 
 start_channel(Pid, Args) ->
-    Mfa = glib_tool:pid_info(Pid),
-    ?LOG_CREATE_CHANNEL(#{'Pid' => Pid, 'Args' => Args, 'Mfa' => Mfa}),
+%%    Mfa = glib_tool:pid_info(Pid),
+%%    ?LOG_CREATE_CHANNEL(#{'Pid' => Pid, 'Args' => Args, 'Mfa' => Mfa}),
     supervisor2:start_child(Pid, [Args]).
 
 %%----------------------------------------------------------------------------
