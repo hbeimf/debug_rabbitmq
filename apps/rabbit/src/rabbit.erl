@@ -844,6 +844,7 @@ rotate_logs() ->
             {'required',string(),string()}}} |
           {'ok',pid()}.
 
+%% 这里是节点启动时,启动rabbit的入口
 start(normal, []) ->
 %%    从这里开如启动的;　在rabbit.app.src里的　{mod, {rabbit, []}},　这个配置处出发
 %%    ?LOG2("starting rabbit from here..."),
@@ -854,7 +855,7 @@ start(normal, []) ->
     %% This is important if the previous startup attempt failed after
     %% rabbitmq_prelaunch was started and the application is still
     %% running.
-    rabbit_boot_state:set(booting),
+    rabbit_boot_state:set(booting), %% 设置状态,直到启动时设置为 ready
     rabbit_prelaunch:clear_stop_reason(),
 
     try
@@ -905,11 +906,11 @@ start(normal, []) ->
         true = register(rabbit, self()),
 
         print_banner(),
-        ?LOG2(here),
+%%        ?LOG2(here),
         log_banner(),
         warn_if_kernel_config_dubious(),
         warn_if_disc_io_options_dubious(),
-        ?LOG2(here),
+%%        ?LOG2(here),
 
         ?LOG_DEBUG(""),
         ?LOG_DEBUG("== Plugins (prelaunch phase) =="),
@@ -928,16 +929,16 @@ start(normal, []) ->
         ok = rabbit_feature_flags:refresh_feature_flags_after_app_load(
                Plugins),
 
-        ?LOG2(here),
+%%        ?LOG2(here),
 
         ?LOG_DEBUG(""),
         ?LOG_DEBUG("== Boot steps =="),
 
-        %% 启动一些主要业务
+        %% 启动一些主要业务, 启动的有点多, 具体启动顺序查看 rabbit_boot_steps 模块底部的注释
         ok = rabbit_boot_steps:run_boot_steps([rabbit | Plugins]),
-        ?LOG2(here),
+%%        ?LOG2(here),
         rabbit_boot_state:set(core_started),
-        ?LOG2(here),
+%%        ?LOG2(here),
         %% 启动网络
         run_postlaunch_phase(Plugins),
         {ok, SupPid}
@@ -958,9 +959,11 @@ start(normal, []) ->
             Error
     end.
 
+%%　启动网络端口
 run_postlaunch_phase(Plugins) ->
     spawn(fun() -> do_run_postlaunch_phase(Plugins) end).
 
+%%　启动网络端口
 do_run_postlaunch_phase(Plugins) ->
     %% Once RabbitMQ itself is started, we need to run a few more steps,
     %% in particular start plugins.

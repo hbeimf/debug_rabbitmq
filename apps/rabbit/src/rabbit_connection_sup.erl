@@ -30,6 +30,8 @@
 -spec start_link(any(), module(), any()) ->
           {'ok', pid(), pid()}.
 
+%% 这里由 tcp_listener_sup 模块穿越ranch包启动,
+
 start_link(Ref, _Transport, _Opts) ->
     {ok, SupPid} = supervisor2:start_link(?MODULE, []),
     %% We need to get channels in the hierarchy here so they get shut
@@ -42,11 +44,18 @@ start_link(Ref, _Transport, _Opts) ->
     %% the queue collector process, since these must not be siblings of the
     %% reader due to the potential for deadlock if they are added/restarted
     %% whilst the supervision tree is shutting down.
+
+    %%　下面这个目前是个空督程, 后面会在这个 sup 下面启动一个 rabbit_channel_sup_sup的 sup1, 并且会在 sup1的下面启动一系列 actor,
+    %%　其中一个重要的 actor : rabbit_channel  就是包括在这个里面,
+
     {ok, HelperSup} =
         supervisor2:start_child(
           SupPid,
           {helper_sup, {rabbit_connection_helper_sup, start_link, []},
            intrinsic, infinity, supervisor, [rabbit_connection_helper_sup]}),
+
+    %% 下面这个actor 会负责从tcp连接里读写数据 ,解包啥的,通信部分相关的细节都由下面这个actor来处理.
+    %%  然后将处理好的数据发送给 rabbit_channel 来处理相关的具体逻辑 ,
     {ok, ReaderPid} =
         supervisor2:start_child(
           SupPid,

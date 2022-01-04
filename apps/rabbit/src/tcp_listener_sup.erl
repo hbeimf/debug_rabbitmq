@@ -28,6 +28,7 @@
          module(), any(), mfargs(), mfargs(), integer(), integer(), string()) ->
                            rabbit_types:ok_pid_or_error().
 
+%% 启动网络端口
 start_link(IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartup, OnShutdown,
            ConcurrentAcceptorCount, ConcurrentConnsSups, Label) ->
     supervisor:start_link(
@@ -56,8 +57,8 @@ start_link(IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartu
 init({IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartup, OnShutdown,
       ConcurrentAcceptorCount, ConcurrentConnsSups, Label}) ->
 
-    ?LOG({IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartup, OnShutdown,
-    ConcurrentAcceptorCount, ConcurrentConnsSups, Label}),
+%%    ?LOG({IPAddress, Port, Transport, SocketOpts, ProtoSup, ProtoOpts, OnStartup, OnShutdown,
+%%    ConcurrentAcceptorCount, ConcurrentConnsSups, Label}),
 
     {ok, AckTimeout} = application:get_env(rabbit, ssl_handshake_timeout),
     MaxConnections = max_conn(rabbit_misc:get_env(rabbit, connection_max, infinity),
@@ -93,7 +94,9 @@ max_conn(Max, Sups) ->
 %%这个ａｃｔｏｒ　才是启动网络的主线,　这里启动的方式比往常的启动更低阶一点,
 %%握手的时候将　ｓｏｃｋｅｔ　句柄传递给　ｒａｂｂｉｔ_ｒｅａｄｅｒ actor
 %%在那个　ａｃｔｏｒ　里进行网络数据的读写操作,　那里是业务逻辑的起点
-
+%% ranch里的建立连接相关的快速过一下吧,最后会转到 rabbit_connection_sup:start_link/3
+%% ｒａｂｂｉｔ_ｒｅａｄｅｒ:ｉｎｉｔ里通过握手拿到　ｓｏｃｋｅｔ后,至此ｔｃｐ连接 的建立差不多就接近尾声了,
+%%建议将ｒａｎｃｈ单独拿出来撸, 一个非常优秀的包, 谁用谁知道
 
 %%#{one =>
 %%    #{id => {ranch_embedded_sup,{acceptor,{0,0,0,0,0,0,0,0},5672}},

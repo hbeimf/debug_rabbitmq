@@ -78,11 +78,14 @@
 
 -spec boot() -> 'ok' | no_return().
 
+%%　启动网络端口
 %% 启动　ranch　依赖,　监听端口,准备接收客户端的连接,
 boot() ->
     ok = record_distribution_listener(),
-    _ = application:start(ranch),
+    _ = application:start(ranch),%% 由于这个项目不是用 rebar3管理的,是我花了两天整成rebar3这种样子,所以启动的时候会有这样的指令,
     rabbit_log:debug("Started Ranch"),
+
+    %% 这会只跟普通tcp连接的方式, 加密连接暂未配置,
     %% Failures will throw exceptions
     _ = boot_listeners(fun boot_tcp/2, application:get_env(rabbit, num_tcp_acceptors, 10),
                        application:get_env(rabbit, num_conns_sups, 1), "TCP"),
@@ -261,6 +264,7 @@ start_tcp_listener(Listener, NumAcceptors) ->
 -spec start_tcp_listener(
         listener_config(), integer(), integer()) -> 'ok' | {'error', term()}.
 
+%% 启动网络端口
 start_tcp_listener(Listener, NumAcceptors, ConcurrentConnsSupsCount) ->
     start_listener(Listener, NumAcceptors, ConcurrentConnsSupsCount, amqp,
                    "TCP listener", tcp_opts()).
@@ -281,6 +285,7 @@ start_ssl_listener(Listener, SslOpts, NumAcceptors, ConcurrentConnsSupsCount) ->
 -spec start_listener(
         listener_config(), integer(), integer(), protocol(), label(), list()) ->
           'ok' | {'error', term()}.
+%% 启动网络端口
 start_listener(Listener, NumAcceptors, ConcurrentConnsSupsCount, Protocol, Label, Opts) ->
     lists:foldl(fun (Address, ok) ->
                         start_listener0(Address, NumAcceptors, ConcurrentConnsSupsCount, Protocol,
@@ -289,13 +294,14 @@ start_listener(Listener, NumAcceptors, ConcurrentConnsSupsCount, Protocol, Label
                         Error
                 end, ok, tcp_listener_addresses(Listener)).
 
+%% 启动网络端口, 至此转到 tcp_listener_sup:start_link/11
 start_listener0(Address, NumAcceptors, ConcurrentConnsSupsCount, Protocol, Label, Opts) ->
     Transport = transport(Protocol),
     Spec = tcp_listener_spec(rabbit_tcp_listener_sup, Address, Opts,
                              Transport, rabbit_connection_sup, [], Protocol,
                              NumAcceptors, ConcurrentConnsSupsCount, Label),
 
-    ?LOG(Spec),
+%%    ?LOG(Spec),
     case supervisor:start_child(rabbit_sup, Spec) of
         {ok, _}          -> ok;
         {error, {{shutdown, {failed_to_start_child, _,
