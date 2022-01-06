@@ -31,6 +31,7 @@
          log_upgrade_verbose/2]).
 
 -include_lib("stdlib/include/qlc.hrl").
+-include_lib("glib/include/log.hrl").
 
 -define(QUEUE_MIGRATION_BATCH_SIZE, 100).
 -define(EMPTY_START_FUN_STATE, {fun (ok) -> finished end, ok}).
@@ -625,6 +626,8 @@ purge(State = #vqstate { len = Len }) ->
 purge_acks(State) -> a(purge_pending_ack(false, State)).
 
 publish(Msg, MsgProps, IsDelivered, ChPid, Flow, State) ->
+    ?LOG_pub(#{'Msg' => Msg}),
+
     State1 =
         publish1(Msg, MsgProps, IsDelivered, ChPid, Flow,
                  fun maybe_write_to_disk/4,
@@ -1819,6 +1822,7 @@ publish1(Msg = #basic_message { is_persistent = IsPersistent, id = MsgId },
                             in_counter          = InCount,
                             durable             = IsDurable,
                             unconfirmed         = UC }) ->
+  ?LOG_pub(#{'Msg' => Msg}),
     IsPersistent1 = IsDurable andalso IsPersistent,
     MsgStatus = msg_status(IsPersistent1, IsDelivered, SeqId, Msg, MsgProps, IndexMaxSize),
     {MsgStatus1, State1} = PersistFun(false, false, MsgStatus, State),
@@ -1842,6 +1846,7 @@ publish1(Msg = #basic_message { is_persistent = IsPersistent, id = MsgId },
                                 durable             = IsDurable,
                                 unconfirmed         = UC,
                                 delta               = Delta}) ->
+  ?LOG_pub(#{'Msg' => Msg}),
     IsPersistent1 = IsDurable andalso IsPersistent,
     MsgStatus = msg_status(IsPersistent1, IsDelivered, SeqId, Msg, MsgProps, IndexMaxSize),
     {MsgStatus1, State1} = PersistFun(true, true, MsgStatus, State),

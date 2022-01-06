@@ -143,6 +143,8 @@ statistics_keys() -> ?STATISTICS_KEYS ++ rabbit_backing_queue:info_keys().
 
 %% 此处被  rabbit_prequeue 模块所调用, 并且返回的时候将 rabbit_prequeue 所在 actor 的回调模块修改成了本模块,
 %%也就是说本该由 rabbit_prequeue 这个工作 actor 收到的消息将被 gen_server2 路由到本模块来处理.
+
+%% 如果是新创建ａｃｔｏｒ,　这里创建ａｃｔｏｒ时状态并没有初始化彻底,　而是由发起的 ｈａｎｄｌｅ_ｃａｌｌ =>　{init, new} 同步调用来进一步完善状态和写入分布式表
 init(Q) ->
 %%    ?LOG3(Q),
     process_flag(trap_exit, true),
@@ -208,18 +210,32 @@ init_state(Q) ->
                single_active_consumer_on = SingleActiveConsumerOn},
     rabbit_event:init_stats_timer(State, #q.stats_timer).
 
+%%　初始化新队列的时候调用这里,
 init_it(Recover, From, State = #q{q = Q})
   when ?amqqueue_exclusive_owner_is(Q, none) ->
+%%    ?LOG_queue_declare(#{'Q' => Q, 'Recover' => Recover}),
     init_it2(Recover, From, State);
+
+%%==========log LOG_queue_declare begin========{rabbit_amqqueue_process,213}==============
+%%#{'Q' =>
+%%{amqqueue,{resource,<<"/">>,queue,<<"data.account_log">>},
+%%true,false,none,[],<0.3592.0>,[],[],[],undefined,undefined,[],
+%%[],live,0,[],<<"/">>,
+%%#{user => <<"guest">>},
+%%rabbit_classic_queue,#{}},
+%%'Recover' => new}
+
 
 %% You used to be able to declare an exclusive durable queue. Sadly we
 %% need to still tidy up after that case, there could be the remnants
 %% of one left over from an upgrade. So that's why we don't enforce
 %% Recover = new here.
 init_it(Recover, From, State = #q{q = Q0}) ->
+%%    ?LOG_queue_declare(#{'Q0' => Q0, 'Recover' => Recover}),
     Owner = amqqueue:get_exclusive_owner(Q0),
     case rabbit_misc:is_process_alive(Owner) of
         true  -> erlang:monitor(process, Owner),
+%%                ?LOG_queue_declare(#{'Q0' => Q0, 'Owner' => Owner}),
                  init_it2(Recover, From, State);
         false -> #q{backing_queue       = undefined,
                     backing_queue_state = undefined,
@@ -234,14 +250,20 @@ init_it(Recover, From, State = #q{q = Q0}) ->
                   State#q{backing_queue = BQ, backing_queue_state = BQS}}
     end.
 
+%%LOG_queue_declare
+%%　初始化新队列的时候调用这里,
 init_it2(Recover, From, State = #q{q                   = Q,
                                    backing_queue       = undefined,
                                    backing_queue_state = undefined}) ->
     {Barrier, TermsOrNew} = recovery_status(Recover),
+%%    ?LOG_queue_declare(#{'Barrier' => Barrier,'TermsOrNew' => TermsOrNew}), % #{'Barrier' => no_barrier,'TermsOrNew' => new}
+    %% 这个下面的调用将队列写入分布式表中,
     case rabbit_amqqueue:internal_declare(Q, Recover /= new) of
         {Res, Q1}
           when ?is_amqqueue(Q1) andalso
                (Res == created orelse Res == existing) ->
+            ?LOG_queue_declare(#{'Res' => Res,'Q1' => Q1}),
+
             case matches(Recover, Q, Q1) of
                 true ->
                     ok = file_handle_cache:register_callback(
@@ -261,6 +283,7 @@ init_it2(Recover, From, State = #q{q                   = Q,
                                         infos(?CREATION_EVENT_KEYS, State1)),
                     rabbit_event:if_enabled(State1, #q.stats_timer,
                                             fun() -> emit_stats(State1) end),
+%%                  ?LOG_queue_declare(#{'State1' => State1}),　　%%　这个 actor 的状态有点庞大,
                     noreply(State1);
                 false ->
                     {stop, normal, {existing, Q1}, State}
@@ -676,10 +699,12 @@ send_or_record_confirm(#delivery{confirm    = true,
 %% upgrades to 3.8.x (i.e. mixed-version clusters), but it is a no-op
 %% starting with that version.
 send_mandatory(#delivery{mandatory  = false}) ->
+%%    ?LOG_pub(here),
     ok;
 send_mandatory(#delivery{mandatory  = true,
                          sender     = SenderPid,
                          msg_seq_no = MsgSeqNo}) ->
+%%    ?LOG_pub(#{'SenderPid' => SenderPid, other => {mandatory_received, MsgSeqNo}}),
     gen_server2:cast(SenderPid, {mandatory_received, MsgSeqNo}).
 
 discard(#delivery{confirm = Confirm,
@@ -697,6 +722,7 @@ discard(#delivery{confirm = Confirm,
 run_message_queue(State) -> run_message_queue(false, State).
 
 run_message_queue(ActiveConsumersChanged, State) ->
+    ?LOG_sub(here),
     case is_empty(State) of
         true  -> maybe_notify_decorators(ActiveConsumersChanged, State);
         false -> case rabbit_queue_consumers:deliver(
@@ -725,6 +751,7 @@ attempt_delivery(Delivery = #delivery{sender  = SenderPid,
 
     ?LOG_CHANNEL_METHOD_CALL(#{'Delivery' => Delivery, 'Message' => Message, 'SenderPid' => SenderPid}),
 
+    %%　下面的这一句的调用会将数据下发给sub端,　得仔细跟下,　
     case rabbit_queue_consumers:deliver(
            fun (true)  -> true = BQ:is_empty(BQS),
                           {AckTag, BQS1} =
@@ -747,6 +774,12 @@ attempt_delivery(Delivery = #delivery{sender  = SenderPid,
                             State#q{consumers = Consumers})}
     end.
 
+%%pub的消息在这里被投递到了队列
+%%　Delivery　:　消息相关的变量
+%%消息怎么传给pub? pub发来的确认怎么路由? 这都是目前最关心的两个细节
+%% 这里跟下去会涉及到 rabbit_priority_queue; rabbit_variable_queue; lqueue;等模块,
+%% 由于高阶函数用的较多,太繁琐,先去sub处看看,看能有什么发现没
+
 maybe_deliver_or_enqueue(Delivery = #delivery{message = Message},
                          Delivered,
                          State = #q{overflow            = Overflow,
@@ -755,7 +788,7 @@ maybe_deliver_or_enqueue(Delivery = #delivery{message = Message},
                                     dlx                 = DLX,
                                     dlx_routing_key     = RK}) ->
 
-    ?LOG_CHANNEL_METHOD_CALL(#{'Delivery' => Delivery, 'Message' => Message}),
+    ?LOG_pub(#{'Delivery' => Delivery, 'Message' => Message}),
 
     send_mandatory(Delivery), %% must do this before confirms
     case {will_overflow(Delivery, State), Overflow} of
@@ -774,6 +807,7 @@ maybe_deliver_or_enqueue(Delivery = #delivery{message = Message},
             %% Drop publish and nack to publisher
             send_reject_publish(Delivery, Delivered, State);
         _ ->
+            %% ?LOG_pub(#{'BQ' => BQ, 'BQS' => BQS}), %% 'BQ' => rabbit_priority_queue,
             {IsDuplicate, BQS1} = BQ:is_duplicate(Message, BQS),
             State1 = State#q{backing_queue_state = BQS1},
             case IsDuplicate of
@@ -793,20 +827,24 @@ deliver_or_enqueue(Delivery = #delivery{message = Message,
                                         flow    = Flow},
                    Delivered,
                    State = #q{q = Q, backing_queue = BQ}) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'Delivery' => Delivery, 'Message' => Message, 'SenderPid' => SenderPid}),
+    ?LOG_pub(#{'Delivery' => Delivery, 'Delivered' => Delivered, 'SenderPid' => SenderPid}),
     {Confirm, State1} = send_or_record_confirm(Delivery, State),
     Props = message_properties(Message, Confirm, State1),
+%%    ?LOG_pub(#{'Delivery' => Delivery, 'Props' => Props, 'Delivered' => Delivered, 'State1' => State1}),
     case attempt_delivery(Delivery, Props, Delivered, State1) of
         {delivered, State2} ->
-            State2;
+          ?LOG_pub(here),
+%%          ?LOG_sub(here), %% 确实运行到这里来了,可见上面的　attempt_delivery　函数调用将数据发给 sub端去了,　
+          State2;
         %% The next one is an optimisation
         {undelivered, State2 = #q{ttl = 0, dlx = undefined,
                                   backing_queue_state = BQS,
                                   msg_id_to_channel   = MTC}} ->
+          ?LOG_pub(here),
             {BQS1, MTC1} = discard(Delivery, BQ, BQS, MTC, amqqueue:get_name(Q)),
             State2#q{backing_queue_state = BQS1, msg_id_to_channel = MTC1};
         {undelivered, State2 = #q{backing_queue_state = BQS}} ->
-
+          ?LOG_pub(#{'BQ' => BQ}), %% #{'BQ' => rabbit_priority_queue}
             BQS1 = BQ:publish(Message, Props, Delivered, SenderPid, Flow, BQS),
             {Dropped, State3 = #q{backing_queue_state = BQS2}} =
                 maybe_drop_head(State2#q{backing_queue_state = BQS1}),
@@ -1313,11 +1351,14 @@ prioritise_info(Msg, _Len, #q{q = Q}) ->
         _                                    -> 0
     end.
 
+%% actor 启动后,状态并没有一次性完善好,而是由这里的请求来进一步完善的,
+%% 不管是启动新列队还是节点重新启动从分布式表里启动这个actor都会请求到这里来执行
 handle_call({init, Recover}, From, State) ->
     try
-	init_it(Recover, From, State)
+      ?LOG_queue_declare({init, Recover}), %% 当actor启动后会立马调用这个请求, {init,new}
+	    init_it(Recover, From, State)
     catch
-	{coordinator_not_started, Reason} ->
+	    {coordinator_not_started, Reason} ->
 	    %% The GM can shutdown before the coordinator has started up
 	    %% (lost membership or missing group), thus the start_link of
 	    %% the coordinator returns {error, shutdown} as rabbit_amqqueue_process
@@ -1370,14 +1411,16 @@ handle_call({basic_get, ChPid, NoAck, LimiterPid}, _From,
             reply({ok, BQ:len(BQS), Msg}, State2)
     end;
 
+%%　sub here
 handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
              PrefetchCount, ConsumerTag, ExclusiveConsume, Args, OkMsg, ActingUser},
             _From, State = #q{consumers             = Consumers,
                               active_consumer = Holder,
                               single_active_consumer_on = SingleActiveConsumerOn}) ->
-    ?LOG_SUB(here), %% amqp_channel:subscribe(Channel, #'basic.consume'{queue = Queue, no_ack = false}, self()), 客户端的这句调用转到了这里,　
+    ?LOG_sub(#{'SingleActiveConsumerOn' =>SingleActiveConsumerOn}),
+    %% amqp_channel:subscribe(Channel, #'basic.consume'{queue = Queue, no_ack = false}, self()), 客户端的这句调用转到了这里,　
     %%　声明一个消费者转到了这里,
-%%  ?LOG_SUB(BQ),
+    %%  ?LOG_SUB(BQ),
     ConsumerRegistration = case SingleActiveConsumerOn of
         true ->
             case ExclusiveConsume of
@@ -1389,6 +1432,7 @@ handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
                     LimiterPid, LimiterActive,
                     PrefetchCount, Args, is_empty(State),
                     ActingUser, Consumers),
+                  ?LOG_sub(#{'Consumers1' => Consumers1, 'Holder' => Holder}),
 
                   case Holder of
                       none ->
@@ -1410,16 +1454,19 @@ handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
                                    LimiterPid, LimiterActive,
                                    PrefetchCount, Args, is_empty(State),
                                    ActingUser, Consumers),
+
+
                     ExclusiveConsumer =
                         if ExclusiveConsume -> {ChPid, ConsumerTag};
                            true             -> Holder
                         end,
+                    ?LOG_sub(#{'Consumers1' => Consumers1, 'ExclusiveConsumer' => ExclusiveConsumer}),
                     {state, State#q{consumers          = Consumers1,
                                     has_had_consumers  = true,
                                     active_consumer    = ExclusiveConsumer}}
             end
     end,
-    ?LOG_SUB(#{'ConsumerRegistration' => ConsumerRegistration}),
+%%    ?LOG_sub(#{'ConsumerRegistration' => ConsumerRegistration}),
     case ConsumerRegistration of
         {error, Reply} ->
             Reply;
@@ -1428,7 +1475,7 @@ handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
             QName = qname(State1),
             AckRequired = not NoAck,
             TheConsumer = rabbit_queue_consumers:get(ChPid, ConsumerTag, State1#q.consumers),
-            ?LOG_SUB(#{'ChPid' => ChPid, 'OkMsg' => OkMsg, 'QName' => QName, 'AckRequired' => AckRequired, 'TheConsumer' => TheConsumer}),
+            ?LOG_sub(#{'ChPid' => ChPid, 'OkMsg' => OkMsg, 'QName' => QName, 'AckRequired' => AckRequired, 'TheConsumer' => TheConsumer}),
 
             {ConsumerIsActive, ActivityStatus} =
                 case {SingleActiveConsumerOn, State1#q.active_consumer} of
@@ -1442,9 +1489,11 @@ handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
             rabbit_core_metrics:consumer_created(
                 ChPid, ConsumerTag, ExclusiveConsume, AckRequired, QName,
                 PrefetchCount, ConsumerIsActive, ActivityStatus, Args),
+
             emit_consumer_created(ChPid, ConsumerTag, ExclusiveConsume,
                 AckRequired, QName, PrefetchCount,
                 Args, none, ActingUser),
+
             notify_decorators(State1),
             reply(ok, run_message_queue(State1))
     end;
@@ -1586,12 +1635,14 @@ handle_cast({run_backing_queue, Mod, Fun},
             State = #q{backing_queue = BQ, backing_queue_state = BQS}) ->
     noreply(State#q{backing_queue_state = BQ:invoke(Mod, Fun, BQS)});
 
+%%pub的消息在这里被投递到了队列
+%%　Delivery　:　消息相关的变量
 handle_cast({deliver,
              Delivery = #delivery{sender = Sender,
                                   flow   = Flow},
              SlaveWhenPublished},
             State = #q{senders = Senders}) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'Delivery' => Delivery}),
+    ?LOG_pub(#{'Delivery' => Delivery, 'SlaveWhenPublished' => SlaveWhenPublished}),
     %% 消息被　ｐｕｂ　到这里来了, 
 
     Senders1 = case Flow of

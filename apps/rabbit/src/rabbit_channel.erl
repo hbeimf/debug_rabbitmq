@@ -301,7 +301,7 @@ send_command(Pid, Msg) ->
 
 %% 消息下发到消费端经过这里
 deliver(Pid, ConsumerTag, AckRequired, Msg) ->
-    ?LOG_SUB(#{'Pid' => Pid, 'ConsumerTag' => ConsumerTag, 'AckRequired' => AckRequired, 'Msg' => Msg}),
+    ?LOG_sub(#{'Pid' => Pid, 'ConsumerTag' => ConsumerTag, 'AckRequired' => AckRequired, 'Msg' => Msg}),
     gen_server2:cast(Pid, {deliver, ConsumerTag, AckRequired, Msg}).
 
 % ==========log LOG_SUB begin========{rabbit_channel,304}==============
@@ -661,6 +661,8 @@ handle_call(list_queue_states, _From, State = #ch{queue_states = QueueStates}) -
 handle_call(_Request, _From, State) ->
     noreply(State).
 
+%% rabbit_reader 与 channel　交互的消息统一发到这里来了,
+%%　与业务相关的请求入口
 handle_cast({method, Method, Content, Flow},
             State = #ch{cfg = #conf{reader_pid = Reader},
                         interceptor_state = IState}) ->
@@ -678,7 +680,7 @@ handle_cast({method, Method, Content, Flow},
     try handle_method(Var, State) of
         {reply, Reply, NewState} ->
             ?LOG_CHANNEL_METHOD_CALL(#{'Reply' => Reply}),
-            ok = send(Reply, NewState),
+            ok = send(Reply, NewState),%% 调用这个send函数会往 Socket里写数据　,
             noreply(NewState);
         {noreply, NewState} ->
             %%　转到这里来了,
@@ -715,8 +717,9 @@ handle_cast({command, Msg}, State) ->
 handle_cast({deliver, _CTag, _AckReq, _Msg},
             State = #ch{cfg = #conf{state = closing}}) ->
     noreply(State);
+%% 由 rabbit_amqqueue_process　->　rabbit_queue_consumers -> rabbit_channel:deliver  下发消息转到这里来的,　
 handle_cast({deliver, ConsumerTag, AckRequired, Msg}, State) ->
-    ?LOG_SUB(#{'ConsumerTag' => ConsumerTag, 'AckRequired' => AckRequired, 'Msg' => Msg}),
+    ?LOG_sub(#{'ConsumerTag' => ConsumerTag, 'AckRequired' => AckRequired, 'Msg' => Msg}),
     % TODO: handle as action
     noreply(handle_deliver(ConsumerTag, AckRequired, Msg, State));
 
@@ -985,10 +988,11 @@ return_ok(State, false, Msg)  -> {reply, Msg, State}.
 ok_msg(true, _Msg) -> undefined;
 ok_msg(false, Msg) -> Msg.
 
+%%　这个函数会往 Socket　里发送数据　,
 send(_Command, #ch{cfg = #conf{state = closing}}) ->
     ok;
 send(Command, #ch{cfg = #conf{writer_pid = WriterPid}}) ->
-    ?LOG2(#{'Command' => Command, 'WriterPid' => WriterPid}),
+%%    ?LOG2(#{'Command' => Command, 'WriterPid' => WriterPid}),
     ok = rabbit_writer:send_command(WriterPid, Command).
 
 format_soft_error(#amqp_error{name = N, explanation = E, method = M}) ->
@@ -1270,6 +1274,7 @@ record_confirms([], State) ->
 record_confirms(MXs, State = #ch{confirmed = C}) ->
     State#ch{confirmed = [MXs | C]}.
 
+%% rabbit_reader 从　tcp里收到请求后会将请求异步发到这里来,　
 handle_method({Method, Content}, State) ->
     ?LOG_CHANNEL_METHOD_CALL(#{'Method' => Method, 'Content' => Content}),
     handle_method(Method, Content, State).
@@ -1333,6 +1338,7 @@ handle_method(#'basic.publish'{immediate = true}, _Content, _State) ->
     ?LOG_CHANNEL_METHOD_CALL(here),
     rabbit_misc:protocol_error(not_implemented, "immediate=true", []);
 
+%%rabbit_pub_account_log:pub_test().
 handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
                                routing_key = RoutingKey,
                                mandatory   = Mandatory},
@@ -1349,16 +1355,16 @@ handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
                                    confirm_enabled  = ConfirmEnabled,
                                    delivery_flow    = Flow
                                    }) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'Content' => Content}),
+    ?LOG_pub(#{'Content' => Content, 'ExchangeNameBin' =>ExchangeNameBin, 'RoutingKey' =>RoutingKey, 'Mandatory' =>Mandatory, 'VHostPath' => VHostPath}),
     State0 = maybe_increase_global_publishers(State),
-    ?LOG_CHANNEL_METHOD_CALL(#{'State0' => State0}),
+%%    ?LOG_pub(#{'State0' => State0}),
     rabbit_global_counters:messages_received(amqp091, 1),
     check_msg_size(Content, MaxMessageSize, GCThreshold),
-    ExchangeName = rabbit_misc:r(VHostPath, exchange, ExchangeNameBin),
-    ?LOG_CHANNEL_METHOD_CALL(#{'ExchangeName' => ExchangeName}),
+    ExchangeName = rabbit_misc:r(VHostPath, exchange, ExchangeNameBin), %% 构造交换器名称,
+%%    ?LOG_pub(#{'ExchangeName' => ExchangeName}),
     check_write_permitted(ExchangeName, User, AuthzContext),
-    Exchange = rabbit_exchange:lookup_or_die(ExchangeName),
-    ?LOG_CHANNEL_METHOD_CALL(#{'Exchange' => Exchange}),
+    Exchange = rabbit_exchange:lookup_or_die(ExchangeName),%% 从分布式表rabbit_exchange里查出这条记录,
+%%    ?LOG_pub(#{'Exchange' => Exchange}),
     
     check_internal_exchange(Exchange),
     check_write_permitted_on_topic(Exchange, User, RoutingKey, AuthzContext),
@@ -1367,12 +1373,12 @@ handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
     DecodedContent = #content {properties = Props} =
         maybe_set_fast_reply_to(
           rabbit_binary_parser:ensure_content_decoded(Content), State),
-    ?LOG_CHANNEL_METHOD_CALL(#{'DecodedContent' => DecodedContent}),
+%%    ?LOG_pub(#{'DecodedContent' => DecodedContent}),
 
     check_user_id_header(Props, State),
     check_expiration_header(Props),
     DoConfirm = Tx =/= none orelse ConfirmEnabled,
-    ?LOG_CHANNEL_METHOD_CALL(#{'DoConfirm' => DoConfirm}),
+%%    ?LOG_pub(#{'DoConfirm' => DoConfirm}), %% false
 
     {MsgSeqNo, State1} =
         case DoConfirm of
@@ -1381,21 +1387,22 @@ handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
                      SeqNo = State0#ch.publish_seqno,
                      {SeqNo, State0#ch{publish_seqno = SeqNo + 1}}
         end,
-    case rabbit_basic:message(ExchangeName, RoutingKey, DecodedContent) of
+    case rabbit_basic:message(ExchangeName, RoutingKey, DecodedContent) of %% 构造 Message
         {ok, Message} ->
-            ?LOG_CHANNEL_METHOD_CALL(#{'Message' => Message}),
+%%            ?LOG_pub(#{'Message' => Message}),
             Delivery = rabbit_basic:delivery(
-                         Mandatory, DoConfirm, Message, MsgSeqNo),
-            QNames = rabbit_exchange:route(Exchange, Delivery),
-            ?LOG_CHANNEL_METHOD_CALL(#{'Delivery' => Delivery, 'QNames' => QNames}),
+                         Mandatory, DoConfirm, Message, MsgSeqNo), %% 构造 Delivery
+            QNames = rabbit_exchange:route(Exchange, Delivery), %% 找出匹配到的队列名
+%%            ?LOG_pub(#{'Delivery' => Delivery, 'QNames' => QNames}),
 
             rabbit_trace:tap_in(Message, QNames, ConnName, ChannelNum,
                                 Username, TraceState),
             DQ = {Delivery#delivery{flow = Flow}, QNames},
-            ?LOG_CHANNEL_METHOD_CALL(#{'DQ' => DQ}),
+%%            ?LOG_pub(#{'DQ' => DQ}),
             {noreply, case Tx of
                           none ->
-                                ?LOG_CHANNEL_METHOD_CALL(#{'DQ' => DQ}),
+                                ?LOG_pub(#{'DQ' => DQ}),
+                              %% 从目前的分析来看, 这上面就是为了构造出 Delivery, QNames 二者的绑定关系 ,
                               deliver_to_queues(DQ, State1);
                           {Msgs, Acks} ->
                               Msgs1 = ?QUEUE:in(DQ, Msgs),
@@ -1526,11 +1533,11 @@ handle_method(#'basic.consume'{queue        = QueueNameBin,
                                          authz_context = AuthzContext},
                              consumer_mapping  = ConsumerMapping
                             }) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'QueueNameBin' => QueueNameBin, 'NoAck' => NoAck, 'NoWait' => NoWait, 'pid' => self(), 'ConsumerTag' => ConsumerTag, 'ConsumerMapping' => ConsumerMapping}),
+    ?LOG_sub(#{'QueueNameBin' => QueueNameBin, 'NoAck' => NoAck, 'NoWait' => NoWait, 'pid' => self(), 'ConsumerTag' => ConsumerTag, 'ConsumerMapping' => ConsumerMapping}),
 
     case maps:find(ConsumerTag, ConsumerMapping) of
         error ->
-            ?LOG_CHANNEL_METHOD_CALL(here), %%　消费者逻辑转到这里来了,　上面的两个变量的值是:　#{'ConsumerMapping' => #{},'ConsumerTag' => <<>>,
+            ?LOG_sub(here), %%　消费者逻辑转到这里来了,　上面的两个变量的值是:　#{'ConsumerMapping' => #{},'ConsumerTag' => <<>>,
             QueueName = qbin_to_resource(QueueNameBin, VHostPath),
             check_read_permitted(QueueName, User, AuthzContext),
             ActualConsumerTag =
@@ -1539,13 +1546,13 @@ handle_method(#'basic.consume'{queue        = QueueNameBin,
                                                 "amq.ctag");
                     Other -> Other
                 end,
-            ?LOG_CHANNEL_METHOD_CALL(#{'ActualConsumerTag' => ActualConsumerTag, other => {QueueName, NoAck, ConsumerPrefetch, ActualConsumerTag, ExclusiveConsume, Args, NoWait, State}}),
+            ?LOG_sub(#{'ActualConsumerTag' => ActualConsumerTag, other => {QueueName, NoAck, ConsumerPrefetch, ActualConsumerTag, ExclusiveConsume, Args, NoWait, State}}),
 
             case basic_consume(
                    QueueName, NoAck, ConsumerPrefetch, ActualConsumerTag,
                    ExclusiveConsume, Args, NoWait, State) of
                 {ok, State1} ->
-                    ?LOG_CHANNEL_METHOD_CALL(here), %%　转到这里来了,　
+                    ?LOG_sub(here), %%　转到这里来了,　
                     {noreply, State1};
                 {error, exclusive_consume_unavailable} ->
                     rabbit_misc:protocol_error(
@@ -1869,11 +1876,11 @@ basic_consume(QueueName, NoAck, ConsumerPrefetch, ActualConsumerTag,
                           limiter = Limiter,
                           consumer_mapping  = ConsumerMapping,
                           queue_states = QueueStates0}) ->
-    ?LOG_CHANNEL_METHOD_CALL(here), %% amqp_channel:subscribe　basic.consume　声明是个消费者逻辑跟到了这里,　ｐｕｂ/ｓｕｂ是怎么对接起来的,可能再跟跟就能了解真相了,　
+    ?LOG_sub(here), %% [1] amqp_channel:subscribe　basic.consume　声明是个消费者逻辑跟到了这里,　ｐｕｂ/ｓｕｂ是怎么对接起来的,可能再跟跟就能了解真相了,　
     case rabbit_amqqueue:with_exclusive_access_or_die(
            QueueName, ConnPid,
            fun (Q) ->
-                    ?LOG_CHANNEL_METHOD_CALL(here), %% 跟过去是回调恶梦,　先搞几个断点看下,　
+                    ?LOG_sub(here), %% [2] 跟过去是回调恶梦,　先搞几个断点看下,　
                    {rabbit_amqqueue:basic_consume(
                       Q, NoAck, self(),
                       rabbit_limiter:pid(Limiter),
@@ -1886,7 +1893,7 @@ basic_consume(QueueName, NoAck, ConsumerPrefetch, ActualConsumerTag,
                     Q}
            end) of
         {{ok, QueueStates, Actions}, Q} when ?is_amqqueue(Q) ->
-            ?LOG_CHANNEL_METHOD_CALL(here),
+            ?LOG_sub(here), %% [3]
             
             rabbit_global_counters:consumer_created(amqp091),
             CM1 = maps:put(
@@ -1988,7 +1995,7 @@ binding_action(Fun, SourceNameBin0, DestinationType, DestinationNameBin0,
     ExchangeName = rabbit_misc:r(VHostPath, exchange, ExchangeNameBin),
     [check_not_default_exchange(N) || N <- [DestinationName, ExchangeName]],
     check_read_permitted(ExchangeName, User, AuthzContext),
-    ?LOG_CHANNEL_METHOD_CALL(#{'DestinationName' => DestinationName, 'ExchangeName' => ExchangeName}),
+    ?LOG_queue_bind(#{'DestinationName' => DestinationName, 'ExchangeName' => ExchangeName}),
 
     case rabbit_exchange:lookup(ExchangeName) of
         {error, not_found} ->
@@ -2086,6 +2093,8 @@ record_sent(Type, QueueType, Tag, AckRequired,
                         next_tag          = DeliveryTag
                        }) ->
     rabbit_global_counters:messages_delivered(amqp091, QueueType, 1),
+    ?LOG_sub({Type, AckRequired}),
+
     ?INCR_STATS(queue_stats, QName, 1,
                 case {Type, AckRequired} of
                     {get, true} ->
@@ -2245,6 +2254,7 @@ notify_limiter(Limiter, Acked) ->
                  end
     end.
 
+%%  没有找到任何一个队列可以发送过去,
 deliver_to_queues({#delivery{message   = #basic_message{exchange_name = XName},
                              confirm   = false,
                              mandatory = false},
@@ -2254,12 +2264,17 @@ deliver_to_queues({#delivery{message   = #basic_message{exchange_name = XName},
     rabbit_global_counters:messages_unroutable_dropped(amqp091, 1),
     ?INCR_STATS(exchange_stats, XName, 1, drop_unroutable, State),
     State;
+%%  刚好为这条消息找到一个可以发送过去的队列　QName
+%% 这里得到了
+%% 消息相关的变量: Delivery;
+%% 队列相关的变量: _RoutedToQueueNames = [QName]};
+%% 这大概就指名了这个消息{Delivery}得发到这个队列{QName}里去处理;
 deliver_to_queues({Delivery = #delivery{message    = Message = #basic_message{exchange_name = XName},
                                         mandatory  = Mandatory,
                                         confirm    = Confirm,
                                         msg_seq_no = MsgSeqNo},
                    _RoutedToQueueNames = [QName]}, State0 = #ch{queue_states = QueueStates0}) -> %% optimisation when there is one queue
-    ?LOG_CHANNEL_METHOD_CALL(here1),
+    ?LOG_pub(here1),
     AllNames = case rabbit_amqqueue:lookup(QName) of
         {ok, Q0} ->
            case amqqueue:get_options(Q0) of
@@ -2268,15 +2283,20 @@ deliver_to_queues({Delivery = #delivery{message    = Message = #basic_message{ex
             end;
         _ -> []
     end,
-    ?LOG_CHANNEL_METHOD_CALL(#{'AllNames' => AllNames, 'QName' => QName}),
+    ?LOG_pub(#{'AllNames' => AllNames, 'QName' => QName}),
     %% 这里Qs查出了一个 pid , 之后会给这个 pid 发送一条消息出去 ,必须弄清楚这个 actor 是在哪里启动的, 
     %% 然后才好跟踪发布的消息, 根据跟踪, 这个　pid 来自于 表 rabbit_queue 里对应的一条记录,
     %% 先去看下 queue.declare 是怎么在分布式表{rabbit_queue}里写入这条数据的,再回到这里继续跟,
+    %% ========================================
+    %% pid 是创建队列actor时挺入的, 是由模块 rabbit_amqqueue_process 处理这个pid的回调方法
     Qs = rabbit_amqqueue:lookup(AllNames),
-    ?LOG_CHANNEL_METHOD_CALL(#{'Qs' => Qs, 'Delivery' => Delivery, 'QueueStates0' => QueueStates0}),
+    ?LOG_pub(#{'Qs' => Qs, 'Delivery' => Delivery, 'QueueStates0' => QueueStates0}),
+    %% Qs: 队列相关的
+    %% Delivery: 消息相关
+    %% 'QueueStates0' => {rabbit_queue_type,#{},#{}}
     case rabbit_queue_type:deliver(Qs, Delivery, QueueStates0) of
         {ok, QueueStates, Actions}  ->
-            ?LOG_CHANNEL_METHOD_CALL(#{'QueueStates' => QueueStates, 'Actions' => Actions}),
+            ?LOG_pub(#{'QueueStates' => QueueStates, 'Actions' => Actions}),
 
             rabbit_global_counters:messages_routed(amqp091, erlang:min(1, length(Qs))),
             %% NB: the order here is important since basic.returns must be
@@ -2305,6 +2325,7 @@ deliver_to_queues({Delivery = #delivery{message    = Message = #basic_message{ex
               "Stream coordinator unavailable for ~s",
               [rabbit_misc:rs(Resource)])
     end;
+%%　一个消息对应多个队列的情况,　这种使用场景是什么了? 客户端怎么构造这样的消息?
 deliver_to_queues({Delivery = #delivery{message    = Message = #basic_message{exchange_name = XName},
                                         mandatory  = Mandatory,
                                         confirm    = Confirm,
@@ -2625,7 +2646,7 @@ handle_method(#'queue.bind'{queue       = QueueNameBin,
                             routing_key = RoutingKey,
                             arguments   = Arguments},
               ConnPid, AuthzContext, _CollectorId, VHostPath, User) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'QueueNameBin' => QueueNameBin, 'ExchangeNameBin' => ExchangeNameBin, 'RoutingKey' => RoutingKey, 'Arguments' => Arguments}),
+    ?LOG_queue_bind(#{'QueueNameBin' => QueueNameBin, 'ExchangeNameBin' => ExchangeNameBin, 'RoutingKey' => RoutingKey, 'Arguments' => Arguments}),
     binding_action(fun rabbit_binding:add/3,
                    ExchangeNameBin, queue, QueueNameBin,
                    RoutingKey, Arguments, VHostPath, ConnPid, AuthzContext, User);
@@ -2640,6 +2661,8 @@ handle_method(#'queue.declare'{queue   = <<"amq.rabbitmq.reply-to",
         exists    -> {ok, QueueName, 0, 1};
         not_found -> rabbit_amqqueue:not_found(QueueName)
     end;
+
+%%　接下来主要研究　queue.declare,　exchange.declare, queue.bind　等几个主要指令,　
 handle_method(#'queue.declare'{queue       = QueueNameBin,
                                passive     = false,
                                durable     = DurableDeclare,
@@ -2649,7 +2672,7 @@ handle_method(#'queue.declare'{queue       = QueueNameBin,
                                arguments   = Args} = Declare,
               ConnPid, AuthzContext, CollectorPid, VHostPath,
               #user{username = Username} = User) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'QueueNameBin' => QueueNameBin, 'durable' => DurableDeclare, 'VHostPath' => VHostPath, 'ConnPid' => ConnPid}),
+%%    ?LOG_queue_declare(#{'QueueNameBin' => QueueNameBin, 'durable' => DurableDeclare, 'VHostPath' => VHostPath, 'ConnPid' => ConnPid}),
 
     Owner = case ExclusiveDeclare of
                 true  -> ConnPid;
@@ -2673,7 +2696,7 @@ handle_method(#'queue.declare'{queue       = QueueNameBin,
     QueueName = rabbit_misc:r(VHostPath, queue, ActualNameBin),
     check_configure_permitted(QueueName, User, AuthzContext),
     rabbit_core_metrics:queue_declared(QueueName),
-    ?LOG_CHANNEL_METHOD_CALL(#{'QueueName' => QueueName, 'User' => User, 'VHostPath' => VHostPath, 'ActualNameBin' => ActualNameBin}),
+%%    ?LOG_queue_declare(#{'QueueName' => QueueName, 'User' => User, 'VHostPath' => VHostPath, 'ActualNameBin' => ActualNameBin}),
 
     case rabbit_amqqueue:with(
            QueueName,
@@ -2682,9 +2705,11 @@ handle_method(#'queue.declare'{queue       = QueueNameBin,
                       maybe_stat(NoWait, Q)
            end) of
         {ok, MessageCount, ConsumerCount} ->
-            ?LOG_CHANNEL_METHOD_CALL(#{'QueueName' => QueueName, 'MessageCount' => MessageCount, 'ConsumerCount' => ConsumerCount}),
+            %% 当队列已经存在了,便会来到这里, 啥也不做
+            ?LOG_queue_declare(#{'QueueName' => QueueName, 'MessageCount' => MessageCount, 'ConsumerCount' => ConsumerCount}),
             {ok, QueueName, MessageCount, ConsumerCount};
         {error, not_found} ->
+            %% 初始化新队列
             %% enforce the limit for newly declared queues only
             check_vhost_queue_limit(QueueName, VHostPath),
             DlxKey = <<"x-dead-letter-exchange">>,
@@ -2700,7 +2725,11 @@ handle_method(#'queue.declare'{queue       = QueueNameBin,
                    check_write_permitted(DLX, User, AuthzContext),
                    ok
             end,
-            ?LOG_CHANNEL_METHOD_CALL(#{'QueueName' => QueueName, 'Durable' => Durable, 'AutoDelete' => AutoDelete, 'Args' => Args, 'Owner' => Owner, 'Username' => Username}),
+            ?LOG_queue_declare(#{'QueueName' => QueueName, 'Durable' => Durable, 'AutoDelete' => AutoDelete, 'Args' => Args, 'Owner' => Owner, 'Username' => Username}),
+            %% 声明队列, 首先得删除分布式表里的数据 ,不然节点启动的时候队列就会启动, 逻辑就是走到上面那个分支去,
+            %% cd /var/lib/rabbitmq
+            %% rm -rf ./mnesia/
+            %% 声明一个新队列的起点是从下面这个函数调用开始跟起,
             case rabbit_amqqueue:declare(QueueName, Durable, AutoDelete,
                                          Args, Owner, Username) of
                 {new, Q} when ?is_amqqueue(Q) ->
@@ -2830,11 +2859,11 @@ handle_method(#'exchange.declare'{exchange    = ExchangeNameBin,
                                   arguments   = Args},
               _ConnPid, AuthzContext, _CollectorPid, VHostPath,
               #user{username = Username} = User) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'ExchangeNameBin' => ExchangeNameBin}),
+    ?LOG_exchange_declare(#{'ExchangeNameBin' => ExchangeNameBin}),
 
     CheckedType = rabbit_exchange:check_type(TypeNameBin),
     ExchangeName = rabbit_misc:r(VHostPath, exchange, strip_cr_lf(ExchangeNameBin)),
-    ?LOG_CHANNEL_METHOD_CALL(#{'ExchangeName' => ExchangeName}),
+    ?LOG_exchange_declare(#{'ExchangeName' => ExchangeName}),
 
     check_not_default_exchange(ExchangeName),
     check_configure_permitted(ExchangeName, User, AuthzContext),
@@ -2890,7 +2919,7 @@ handle_deliver0(ConsumerTag, AckRequired,
                                        writer_gc_threshold = GCThreshold},
                            next_tag   = DeliveryTag,
                            queue_states = Qs}) ->
-    ?LOG_SUB(here),
+    ?LOG_sub(here),
 
     Deliver = #'basic.deliver'{consumer_tag = ConsumerTag,
                                delivery_tag = DeliveryTag,
@@ -2900,9 +2929,17 @@ handle_deliver0(ConsumerTag, AckRequired,
     {ok, QueueType} = rabbit_queue_type:module(QName, Qs),
     case QueueType of
         rabbit_classic_queue ->
+            ?LOG_sub(#{'WriterPid' => WriterPid, 'QPid' => QPid, 'Deliver' => Deliver, 'Content' => Content, pid => self()}), %%　转到这个分支来了　,
+            %% 这个地儿跟下去就是往sub的tcp连接里下发数据,　跟来跟去,还是跟得channel里来了,　
+            %%　客户端通过rabbit_reader 将请求转到　rabbit_channel; rabbit_channel　将请求转到　rabbit_amqqueue_process;
+            %% rabbit_amqqueue_process 再将应答转到　rabbit_channel　;　rabbit_channel　将应答写入连接的Socket ;
+            %% 一个消息的大至扭转情况就是这样子.
+            %% 现在又有一个新问题了,如果只有pub端,sub端没有启来, 消息是怎么持久化的?
+            %% 先从 sub端声明后就尝试下发消息处开始为突破点, 因为那个地儿好像有去拿消息下发,先弄清楚是从哪里取的消息,找到些许线索后,再从别的地方去跟,
             ok = rabbit_writer:send_command_and_notify(
                    WriterPid, QPid, self(), Deliver, Content);
         _ ->
+            ?LOG_sub(here),
             ok = rabbit_writer:send_command(WriterPid, Deliver, Content)
     end,
     case GCThreshold of

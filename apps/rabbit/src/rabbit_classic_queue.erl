@@ -55,7 +55,7 @@ is_enabled() -> true.
 
 %% 初始化队列, 从 rabbit_channel 模块那边跟过来的,
 declare(Q, Node) when ?amqqueue_is_classic(Q) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'Q' => Q, 'Node' => Node}),
+    ?LOG_queue_declare(#{'Q' => Q, 'Node' => Node}),
 
     QName = amqqueue:get_name(Q),
     VHost = amqqueue:get_vhost(Q),
@@ -73,8 +73,13 @@ declare(Q, Node) when ?amqqueue_is_classic(Q) ->
     Node1 = rabbit_mirror_queue_misc:initial_queue_node(Q, Node1),
     case rabbit_vhost_sup_sup:get_vhost_sup(VHost, Node1) of
         {ok, _} ->
-            ?LOG_CHANNEL_METHOD_CALL(#{'Q' => Q, 'Node1' => Node1}),
-            %% 这里应该接近创建新列队进程了, 
+            ?LOG_queue_declare(#{'Q' => Q, 'Node1' => Node1}),
+            %% 这里应该接近创建新列队进程了,
+            %% 这边是从 rabbit_channel 那边声明新队列跟过来的,
+            %% 不管是声明新队列还是节点启动时从分布式表里启动已经存在的队列,都会调用 rabbit_amqqueue_sup_sup:start_queue_process/3 ;
+            %% 只有最后一个参数不同, 一个是 declare, 另一个是 recover,通过跟这个参数 ,发现这个参数并不影响队列启动,被丢掉了,
+            %% 启动　queue_process　后立马向 队列　ａｃｔｏｒ发一个 {init, new} 的ｃａｌｌ请求,用来更新 ａｃｔｏｒ的状态,
+            %% 注意在调用 rabbit_amqqueue_sup_sup:start_queue_process/3后会立马对该返回的Pid发起call同步请求进一步完善该actor的状态
             gen_server2:call(
               rabbit_amqqueue_sup_sup:start_queue_process(Node1, Q, declare),
               {init, new}, infinity);
@@ -190,11 +195,11 @@ update(Q, #?STATE{pid = Pid} = State) when ?amqqueue_is_classic(Q) ->
     end.
 
 consume(Q, Spec, State) when ?amqqueue_is_classic(Q) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'Spec' => Spec, 'Q' => Q, 'State' => State}),
+    ?LOG_sub(#{'Spec' => Spec, 'Q' => Q, 'State' => State}),
 
     QPid = amqqueue:get_pid(Q),
     QRef = amqqueue:get_name(Q),
-    ?LOG_CHANNEL_METHOD_CALL(#{'QPid' => QPid, 'Q' => Q, 'QRef' => QRef}),
+    ?LOG_sub(#{'QPid' => QPid, 'Q' => Q, 'QRef' => QRef}),
     #{no_ack := NoAck,
       channel_pid := ChPid,
       limiter_pid := LimiterPid,
@@ -325,12 +330,15 @@ settlement_action(Type, QRef, MsgSeqs, Acc) ->
 -spec deliver([{amqqueue:amqqueue(), state()}],
               Delivery :: term()) ->
     {[{amqqueue:amqqueue(), state()}], rabbit_queue_type:actions()}.
+
+%% Qs0 : 队列相关的变量; Delivery: 消息相关的变量
+%% 大至跳转: rabbit_channel:deliver_to_queues/3 -> rabbit_queue_type:deliver0/3 -> 此模块的这里
 deliver(Qs0, #delivery{flow = Flow,
                        msg_seq_no = MsgNo,
                        message = #basic_message{exchange_name = _Ex},
                        confirm = Confirm} = Delivery) ->
 
-    ?LOG_CHANNEL_METHOD_CALL(#{'Qs0' => Qs0, 'Delivery' => Delivery, 'Confirm' => Confirm, 'MsgNo' => MsgNo}),
+%%    ?LOG_pub(#{'Qs0' => Qs0, 'Delivery' => Delivery, 'Confirm' => Confirm, 'MsgNo' => MsgNo}),
     %% TODO: record master and slaves for confirm processing
     {MPids, SPids, Qs, Actions} = qpids(Qs0, Confirm, MsgNo),
     QPids = MPids ++ SPids,
@@ -345,7 +353,8 @@ deliver(Qs0, #delivery{flow = Flow,
     MMsg = {deliver, Delivery, false},
     SMsg = {deliver, Delivery, true},
 
-    ?LOG_CHANNEL_METHOD_CALL(#{'MMsg' => MMsg, 'SMsg' => SMsg, 'MPids' => MPids, 'SPids' => SPids}),
+    ?LOG_pub(#{ 'MPids' => MPids, 'SPids' => SPids}), % #{'MPids' => [<0.3659.0>],'SPids' => []}
+    %%　'MPids' => [<0.3659.0>]　的回调模块是 rabbit_amqqueue_process;
     delegate:invoke_no_result(MPids, {gen_server2, cast, [MMsg]}),
     delegate:invoke_no_result(SPids, {gen_server2, cast, [SMsg]}),
     {Qs, Actions}.
@@ -466,6 +475,7 @@ delete_crashed_internal(Q, ActingUser) ->
     ok = rabbit_amqqueue:internal_delete(QName, ActingUser).
 
 %%　系统刚启动的时候,在这里启动已经存在的队列
+%% 注意在调用 rabbit_amqqueue_sup_sup:start_queue_process/3后会立马对该返回的Pid发起call同步请求进一步完善该actor的状态
 recover_durable_queues(QueuesAndRecoveryTerms) ->
     {Results, Failures} =
         gen_server2:mcall(

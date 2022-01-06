@@ -8,6 +8,7 @@
 -module(rabbit_exchange).
 -include_lib("rabbit_common/include/rabbit.hrl").
 -include_lib("rabbit_common/include/rabbit_framing.hrl").
+-include_lib("glib/include/log.hrl").
 
 -export([recover/1, policy_changed/2, callback/4, declare/7,
          assert_equivalence/6, assert_args_equivalence/2, check_type/1,
@@ -111,6 +112,8 @@ is_amq_prefixed(#exchange{name = #resource{name = Name}}) ->
         -> rabbit_types:exchange().
 
 declare(XName, Type, Durable, AutoDelete, Internal, Args, Username) ->
+    ?LOG_exchange_declare({XName, Type, Durable, AutoDelete, Internal, Args, Username}),
+
     X = rabbit_exchange_decorator:set(
           rabbit_policy:set(#exchange{name        = XName,
                                       type        = Type,
@@ -405,9 +408,11 @@ info_all(VHostPath, Items, Ref, AggregatorPid) ->
 -spec route(rabbit_types:exchange(), rabbit_types:delivery())
                  -> [rabbit_amqqueue:name()].
 
+%%LOG_pub
 route(#exchange{name = #resource{virtual_host = VHost, name = RName} = XName,
                 decorators = Decorators} = X,
       #delivery{message = #basic_message{routing_keys = RKs}} = Delivery) ->
+    ?LOG_pub(#{'RName' => RName, 'RKs' => RKs, 'Decorators' => Decorators, 'VHost' => VHost}),
     case RName of
         <<>> ->
             RKsSorted = lists:usort(RKs),
@@ -417,16 +422,28 @@ route(#exchange{name = #resource{virtual_host = VHost, name = RName} = XName,
                                                 not virtual_reply_queue(RK)];
         _ ->
             Decs = rabbit_exchange_decorator:select(route, Decorators),
+            ?LOG_pub(Decs),
             lists:usort(route1(Delivery, Decs, {[X], XName, []}))
     end.
+
+%%==========log LOG_pub begin========{rabbit_exchange,425}==============
+%%[]
+
+%%==========log LOG_pub begin========{rabbit_exchange,415}==============
+%%#{'Decorators' => {[],[]},
+%%'RKs' => [<<>>],
+%%'RName' => <<"account_log">>,'VHost' => <<"/">>}
+
 
 virtual_reply_queue(<<"amq.rabbitmq.reply-to.", _/binary>>) -> true;
 virtual_reply_queue(_)                                      -> false.
 
 route1(_, _, {[], _, QNames}) ->
+    ?LOG_pub({here, QNames}),
     QNames;
 route1(Delivery, Decorators,
        {[X = #exchange{type = Type} | WorkList], SeenXs, QNames}) ->
+  ?LOG_pub(here),
     ExchangeDests  = (type_to_module(Type)):route(X, Delivery),
     DecorateDests  = process_decorators(X, Decorators, Delivery),
     AlternateDests = process_alternate(X, ExchangeDests),

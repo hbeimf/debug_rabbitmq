@@ -170,8 +170,9 @@ add(Binding, ActingUser) -> add(Binding, fun (_Src, _Dst) -> ok end, ActingUser)
 
 -spec add(rabbit_types:binding(), inner_fun(), rabbit_types:username()) -> bind_res().
 
+%% 建立绑定关系　
 add(Binding, InnerFun, ActingUser) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'Binding' => Binding, 'ActingUser' => ActingUser}),
+    ?LOG_queue_bind(#{'Binding' => Binding, 'ActingUser' => ActingUser}),
 
     binding_action(
       Binding,
@@ -185,10 +186,10 @@ add(Binding, InnerFun, ActingUser) ->
                       %% anything else
                       case InnerFun(Src, Dst) of
                           ok ->
-                              ?LOG_CHANNEL_METHOD_CALL(#{'Src' => Src, 'Dst' => Dst, 'B' => B}),
+                              ?LOG_queue_bind(#{'Src' => Src, 'Dst' => Dst, 'B' => B}),
                               case mnesia:read({rabbit_route, B}) of
                                   []  -> 
-                                    ?LOG_CHANNEL_METHOD_CALL(here),
+                                    ?LOG_queue_bind(here),
                                     add(Src, Dst, B, ActingUser);
                                   [_] -> fun () -> ok end
                               end;
@@ -200,10 +201,15 @@ add(Binding, InnerFun, ActingUser) ->
               end
       end, fun not_found_or_absent_errs/1).
 
+%% 建立绑定关系　
 add(Src, Dst, B, ActingUser) ->
+    ?LOG_queue_bind(#{'Src' => Src, 'Dst' =>Dst, 'B' => B, 'ActingUser' => ActingUser}),
     [SrcDurable, DstDurable] = [durable(E) || E <- [Src, Dst]],
+    ?LOG_queue_bind(#{'SrcDurable' => SrcDurable, 'DstDurable' => DstDurable}), %% #{'DstDurable' => true,'SrcDurable' => true}
+    %%　下面这句调用分别在４个分布式表里插入一条　exchange, queue　的绑定记录,
     ok = sync_route(#route{binding = B}, SrcDurable, DstDurable,
                     fun mnesia:write/3),
+
     x_callback(transaction, Src, add_binding, B),
     Serial = rabbit_exchange:serial(Src),
     fun () ->
@@ -463,19 +469,20 @@ binding_action(Binding = #binding{source      = SrcName,
       end, ErrFun).
 
 sync_route(Route, true, true, Fun) ->
-    ok = Fun(rabbit_durable_route, Route, write),
+    ?LOG(#{'Route' => Route}),
+    ok = Fun(rabbit_durable_route, Route, write), %% 在表　rabbit_durable_route 里写一条记录,
     sync_route(Route, false, true, Fun);
 
 sync_route(Route, false, true, Fun) ->
-    ok = Fun(rabbit_semi_durable_route, Route, write),
+    ok = Fun(rabbit_semi_durable_route, Route, write),%% 在表　rabbit_semi_durable_route 里写一条记录,
     sync_route(Route, false, false, Fun);
 
 sync_route(Route, _SrcDurable, false, Fun) ->
     sync_transient_route(Route, Fun).
 
 sync_transient_route(Route, Fun) ->
-    ok = Fun(rabbit_route, Route, write),
-    ok = Fun(rabbit_reverse_route, reverse_route(Route), write).
+    ok = Fun(rabbit_route, Route, write), %% 在表　rabbit_route 里写一条记录,
+    ok = Fun(rabbit_reverse_route, reverse_route(Route), write). %% 在表　rabbit_reverse_route 里写一条记录,
 
 call_with_source_and_destination(SrcName, DstName, Fun, ErrFun) ->
     SrcTable = table_for_resource(SrcName),

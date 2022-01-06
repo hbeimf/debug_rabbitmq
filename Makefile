@@ -12,9 +12,8 @@ PREVIOUS_VERSION = 0.1.0
 VERSION := 0.1.0
 
 # 名字是有讲究的哈,　不能乱起,　rabbit@maomao-VirtualBox
-run:
+run: qq
 	./rebar3 shell --name rabbit@maomao-VirtualBox --setcookie debug_rabbitmq_cookie
-
 
 init:
 	sudo mkdir -p /var/lib/rabbitmq/
@@ -24,6 +23,11 @@ init:
 	sudo mkdir /etc/rabbitmq
 	sudo chmod 777 /etc/rabbitmq -R
 
+# %% cd /var/lib/rabbitmq
+# %% rm -rf ./mnesia/
+
+qq:
+	cd /var/lib/rabbitmq && rm -rf ./mnesia/	
 
 cc:
 	rm -rf _build/default/lib

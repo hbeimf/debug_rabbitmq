@@ -128,6 +128,14 @@ unacknowledged_message_count() ->
 add(ChPid, CTag, NoAck, LimiterPid, LimiterActive, Prefetch, Args, IsEmpty,
     Username, State = #state{consumers = Consumers,
                              use       = CUInfo}) ->
+    ?LOG_sub(#{'ChPid' => ChPid, 'CTag' => CTag, 'NoAck' => NoAck, 'LimiterPid' => LimiterPid
+      , 'LimiterActive' => LimiterActive, 'Prefetch' => Prefetch, 'Args' => Args, 'IsEmpty' => IsEmpty, 'Username' => Username}),
+    %%  ==========log LOG_sub begin========{rabbit_queue_consumers,131}==============
+    %%  #{'Args' => [],'CTag' => <<"amq.ctag-xyGrtNngJbvXwL1oBn2vDA">>,
+    %%  'ChPid' => <0.3592.0>,'IsEmpty' => false,'LimiterActive' => false,
+    %%  'LimiterPid' => <0.3590.0>,'NoAck' => false,'Prefetch' => 0,
+    %%  'Username' => <<"guest">>}
+
     C = #cr{consumer_count = Count,
             limiter        = Limiter} = ch_record(ChPid, LimiterPid),
     Limiter1 = case LimiterActive of
@@ -203,16 +211,33 @@ send_drained() -> [update_ch_record(send_drained(C)) || C <- all_ch_record()],
                      {'delivered',   boolean(), T, state()} |
                      {'undelivered', boolean(), state()}.
 
+%% pub数据时会转到这里,　这里是下发数据到消费端必经之路,
+%%　具体发起调用的位置在　rabbit_amqqueue_process 模块里搜索　"rabbit_queue_consumers:deliver"　
+%% 共有两处调用,　
+%% 一处是pub数据的时候;　一旦pub了数据就立马尝试下发给sub端,　所以得调用这个来下发,
+%% 　一处是声明sub的时候;　一旦声明是个消费端,就立马尝试消费掉队列里积压的数据　
 deliver(FetchFun, QName, State, SingleActiveConsumerIsOn, ActiveConsumer) ->
-    ?LOG_SUB(#{'FetchFun' => FetchFun, 'QName' => QName, 'State' => State, 'SingleActiveConsumerIsOn' => SingleActiveConsumerIsOn, 'ActiveConsumer' => ActiveConsumer}),
+    ?LOG_sub(#{'FetchFun' => FetchFun, 'QName' => QName, 'State' => State, 'SingleActiveConsumerIsOn' => SingleActiveConsumerIsOn, 'ActiveConsumer' => ActiveConsumer}),
     deliver(FetchFun, QName, false, State, SingleActiveConsumerIsOn, ActiveConsumer).
 
+%%==========log LOG_sub begin========{rabbit_queue_consumers,220}==============
+%%#{'ActiveConsumer' => none,
+%%'FetchFun' => #Fun<rabbit_amqqueue_process.25.37416945>,
+%%'QName' => {resource,<<"/">>,queue,<<"data.account_log">>},
+%%'SingleActiveConsumerIsOn' => false,
+%%'State' =>
+%%{state,{queue,[{<0.3632.0>,
+%%{consumer,<<"amq.ctag-MsrqsiqFzknOcBiqrpPizw">>,true,0,
+%%[],<<"guest">>}}],
+%%[],1},
+%%{active,-576460741819650,0.530746796939323}}}
+
 deliver(_FetchFun, _QName, false, State, true, none) ->
-    ?LOG_SUB(here),
+%%    ?LOG_sub(here),
     {undelivered, false,
         State#state{use = update_use(State#state.use, inactive)}};
 deliver(FetchFun, QName, false, State = #state{consumers = Consumers}, true, SingleActiveConsumer) ->
-    ?LOG_SUB(here),
+%%    ?LOG_sub(here),
     {ChPid, Consumer} = SingleActiveConsumer,
     %% blocked (rate/prefetch limited) consumers are removed from the queue state, but not the exclusive_consumer field,
     %% so we need to do this check to avoid adding the exclusive consumer to the channel record
@@ -233,30 +258,30 @@ deliver(FetchFun, QName, false, State = #state{consumers = Consumers}, true, Sin
     end;
 deliver(FetchFun, QName, ConsumersChanged,
     State = #state{consumers = Consumers}, false, _SingleActiveConsumer) ->
-    ?LOG_SUB(here),
-    %% 没有消费者的时候发布消息执行到了这里,
+    ?LOG_sub(#{'Consumers' => Consumers}), %% [1]
+    %%
     case priority_queue:out_p(Consumers) of
         {empty, _} ->
-            ?LOG_SUB(here),
+            ?LOG_sub(here),
             {undelivered, ConsumersChanged,
              State#state{use = update_use(State#state.use, inactive)}};
         {{value, QEntry, Priority}, Tail} ->
-            ?LOG_SUB(here),
-            case deliver_to_consumer(FetchFun, QEntry, QName) of
+            ?LOG_sub(#{'QEntry' => QEntry, 'Priority' => Priority, 'Tail' => Tail}), %% [2]
+            case deliver_to_consumer(FetchFun, QEntry, QName) of %% 从这个函数的名称来看,好像是要将数据下发给sub了,　
                 {delivered, R} ->
-                    ?LOG_SUB(R),
+                    ?LOG_sub(R), %% [5]
                     {delivered, ConsumersChanged, R,
                      State#state{consumers = priority_queue:in(QEntry, Priority,
                                                                Tail)}};
                 undelivered ->
-                    ?LOG_SUB(here),
+                    ?LOG_sub(here),
                     deliver(FetchFun, QName, true,
                             State#state{consumers = Tail}, false, _SingleActiveConsumer)
             end
     end.
 
 deliver_to_consumer(FetchFun, E = {ChPid, Consumer}, QName) ->
-  ?LOG_SUB(here),
+  ?LOG_sub(here), %% [3]
     C = lookup_ch(ChPid),
     case is_ch_blocked(C) of
         true  ->
@@ -284,7 +309,7 @@ deliver_to_consumer(FetchFun,
                     QName) ->
 %%  ?LOG_SUB(here),
     {{Message, IsDelivered, AckTag}, R} = FetchFun(AckRequired),
-  ?LOG_SUB({Message, IsDelivered, AckTag}),
+  ?LOG_sub({Message, IsDelivered, AckTag}), %% [4]
     rabbit_channel:deliver(ChPid, CTag, AckRequired,
                            {QName, self(), AckTag, IsDelivered, Message}),
     ChAckTags1 = case AckRequired of
@@ -294,6 +319,23 @@ deliver_to_consumer(FetchFun,
     update_ch_record(C#cr{acktags              = ChAckTags1,
                           unsent_message_count = Count + 1}),
     R.
+
+%%==========log LOG_sub begin========{rabbit_queue_consumers,312}==============
+%%{{basic_message,{resource,<<"/">>,exchange,<<"account_log">>},
+%%                [<<>>],
+%%                {content,60,
+%%                          {'P_basic',undefined,undefined,undefined,undefined,
+%%                                      undefined,undefined,undefined,undefined,
+%%                                      undefined,undefined,undefined,undefined,
+%%                                      undefined,undefined},
+%%                          <<0,0>>,
+%%                          rabbit_framing_amqp_0_9_1,
+%%                          [<<"{\"id\":1}">>]},
+%%                <<72,169,80,77,37,56,185,90,9,23,25,142,185,131,232,86>>,
+%%                false},
+%%false,1}
+
+
 
 is_blocked(Consumer = {ChPid, _C}) ->
     #cr{blocked_consumers = BlockedConsumers} = lookup_ch(ChPid),

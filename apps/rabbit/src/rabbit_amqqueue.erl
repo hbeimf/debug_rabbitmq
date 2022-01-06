@@ -207,7 +207,7 @@ find_recoverable_queues() ->
     {protocol_error, Type :: atom(), Reason :: string(), Args :: term()}.
 %% 初始化队列, 这里是被rabbit_channel模块 2704 行左右 调用  'queue.declare' ;
 declare(QueueName, Durable, AutoDelete, Args, Owner, ActingUser) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'QueueName' => QueueName, 'Durable' => Durable, 'AutoDelete' => AutoDelete, 'Args' => Args, 'Owner' => Owner, 'ActingUser' => ActingUser}),
+    ?LOG_queue_declare(#{'QueueName' => QueueName, 'Durable' => Durable, 'AutoDelete' => AutoDelete, 'Args' => Args, 'Owner' => Owner, 'ActingUser' => ActingUser}),
     declare(QueueName, Durable, AutoDelete, Args, Owner, ActingUser, node()).
 
 
@@ -241,7 +241,7 @@ declare(QueueName = #resource{virtual_host = VHost}, Durable, AutoDelete, Args,
                               VHost,
                               #{user => ActingUser},
                               Type),
-            ?LOG_CHANNEL_METHOD_CALL(#{'Q' => Q}),
+            ?LOG_queue_declare(#{'Q' => Q}),
             rabbit_queue_type:declare(Q, Node);
         false ->
             {protocol_error, internal_error,
@@ -261,7 +261,11 @@ get_queue_type(Args) ->
 -spec internal_declare(amqqueue:amqqueue(), boolean()) ->
     {created | existing, amqqueue:amqqueue()} | queue_absent().
 
+%%LOG_queue_declare
+%%　初始化新队列的时候调用这里,
 internal_declare(Q, Recover) ->
+    ?LOG_queue_declare(#{'Q' => Q, 'Recover' => Recover}),
+%%    io:format("~p~n", [?try_mnesia_tx_or_upgrade_amqqueue_and_retry]),
     ?try_mnesia_tx_or_upgrade_amqqueue_and_retry(
         do_internal_declare(Q, Recover),
         begin
@@ -270,12 +274,16 @@ internal_declare(Q, Recover) ->
         end).
 
 do_internal_declare(Q, true) ->
+    ?LOG_queue_declare(Q),
     rabbit_misc:execute_mnesia_tx_with_tail(
       fun () ->
               ok = store_queue(amqqueue:set_state(Q, live)),
               rabbit_misc:const({created, Q})
       end);
+%%LOG_queue_declare
+%%　初始化新队列的时候调用这里,
 do_internal_declare(Q, false) ->
+    ?LOG_queue_declare(Q),
     QueueName = amqqueue:get_name(Q),
     rabbit_misc:execute_mnesia_tx_with_tail(
       fun () ->
@@ -284,7 +292,7 @@ do_internal_declare(Q, false) ->
                       case not_found_or_absent(QueueName) of
                           not_found           -> Q1 = rabbit_policy:set(Q),
                                                  Q2 = amqqueue:set_state(Q1, live),
-                                                 ok = store_queue(Q2),
+                                                 ok = store_queue(Q2), %% 将队列信息写入分布式表
                                                  fun () -> {created, Q2} end;
                           {absent, _Q, _} = R -> rabbit_misc:const(R)
                       end;
@@ -338,6 +346,7 @@ store_queue(Q) when ?amqqueue_is_durable(Q) ->
 store_queue(Q) when not ?amqqueue_is_durable(Q) ->
     store_queue_ram(Q).
 
+%% 将队列信息写入分布式表中,
 store_queue_ram(Q) ->
     ok = mnesia:write(rabbit_queue, rabbit_queue_decorator:set(Q), write).
 
@@ -392,14 +401,14 @@ is_server_named_allowed(Args) ->
 
 lookup([])     -> [];                             %% optimisation
 lookup([Name]) -> 
-    ?LOG_CHANNEL_METHOD_CALL(#{'Name' => Name}),
+    ?LOG_queue_declare(#{'Name' => Name}),
     ets:lookup(rabbit_queue, Name); %% optimisation
 lookup(Names) when is_list(Names) ->
     %% Normally we'd call mnesia:dirty_read/1 here, but that is quite
     %% expensive for reasons explained in rabbit_misc:dirty_read/1.
     lists:append([ets:lookup(rabbit_queue, Name) || Name <- Names]);
 lookup(Name) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'Name' => Name}),
+%%    ?LOG_queue_declare(#{'Name' => Name}),
     rabbit_misc:dirty_read({rabbit_queue, Name}).
 
 -spec lookup_many ([name()]) -> [amqqueue:amqqueue()].
@@ -585,23 +594,29 @@ with(Name, F, E) ->
     with(Name, F, E, 2000).
 
 with(#resource{} = Name, F, E, RetriesLeft) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'Name' => Name}),
+    ?LOG_sub(#{'Name' => Name}), %%　#{'Name' => {resource,<<"/">>,queue,<<"data.account_log">>}}
 
     case lookup(Name) of
         {ok, Q} when ?amqqueue_state_is(Q, live) andalso RetriesLeft =:= 0 ->
+            ?LOG_sub(here),
             %% Something bad happened to that queue, we are bailing out
             %% on processing current request.
             E({absent, Q, timeout});
         {ok, Q} when ?amqqueue_state_is(Q, stopped) andalso RetriesLeft =:= 0 ->
+            ?LOG_sub(here),
             %% The queue was stopped and not migrated
             E({absent, Q, stopped});
         %% The queue process has crashed with unknown error
         {ok, Q} when ?amqqueue_state_is(Q, crashed) ->
+            ?LOG_sub(here),
+
             E({absent, Q, crashed});
         %% The queue process has been stopped by a supervisor.
         %% In that case a synchronised mirror can take over
         %% so we should retry.
         {ok, Q} when ?amqqueue_state_is(Q, stopped) ->
+            ?LOG_sub(here),
+
             %% The queue process was stopped by the supervisor
             rabbit_misc:with_exit_handler(
               fun () -> retry_wait(Q, F, E, RetriesLeft) end,
@@ -610,6 +625,7 @@ with(#resource{} = Name, F, E, RetriesLeft) ->
         %% The master node can go away or queue can be killed
         %% so we retry, waiting for a mirror to take over.
         {ok, Q} when ?amqqueue_state_is(Q, live) ->
+            ?LOG_sub(#{'Name' => Name, 'Q' => Q}),  %%　转到这里来了,
             %% We check is_process_alive(QPid) in case we receive a
             %% nodedown (for example) in F() that has nothing to do
             %% with the QPid. F() should be written s.t. that this
@@ -757,8 +773,17 @@ check_exclusive_access(Q, _ReaderPid, _MatchType) ->
           A | rabbit_types:channel_exit().
 
 with_exclusive_access_or_die(Name, ReaderPid, F) ->
+    Mfa = glib_tool:pid_info(ReaderPid),
+    ?LOG_sub(#{'Name' => Name, 'ReaderPid' => ReaderPid, 'Mfa' => Mfa}),
     with_or_die(Name,
                 fun (Q) -> check_exclusive_access(Q, ReaderPid), F(Q) end).
+
+%%==========log LOG_sub begin========{rabbit_amqqueue,771}==============
+%%#{'Mfa' => {rabbit_reader,init,3},
+%%'Name' => {resource,<<"/">>,queue,<<"data.account_log">>},
+%%'ReaderPid' => <0.3644.0>}
+
+
 
 assert_args_equivalence(Q, RequiredArgs) ->
     QueueName = amqqueue:get_name(Q),
@@ -1668,7 +1693,7 @@ basic_get(Q, NoAck, LimiterPid, CTag, QStates0) ->
 basic_consume(Q, NoAck, ChPid, LimiterPid,
               LimiterActive, ConsumerPrefetchCount, ConsumerTag,
               ExclusiveConsume, Args, OkMsg, ActingUser, Contexts) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{params => {Q, NoAck, ChPid, LimiterPid, LimiterActive, ConsumerPrefetchCount, ConsumerTag, ExclusiveConsume, Args, OkMsg, ActingUser, Contexts}}),
+    ?LOG_sub(#{params => {Q, NoAck, ChPid, LimiterPid, LimiterActive, ConsumerPrefetchCount, ConsumerTag, ExclusiveConsume, Args, OkMsg, ActingUser, Contexts}}),
     %% todo:
     QName = amqqueue:get_name(Q),
     %% first phase argument validation
@@ -1684,7 +1709,7 @@ basic_consume(Q, NoAck, ChPid, LimiterPid,
              args => Args,
              ok_msg => OkMsg,
              acting_user =>  ActingUser},
-    ?LOG_CHANNEL_METHOD_CALL(#{'Spec' => Spec, 'Q' => Q, 'Contexts' => Contexts, test => 123}),
+    ?LOG_sub(#{'Spec' => Spec, 'Q' => Q, 'Contexts' => Contexts, test => 123}),
     rabbit_queue_type:consume(Q, Spec, Contexts).
 
 -spec basic_cancel(amqqueue:amqqueue(), rabbit_types:ctag(), any(),

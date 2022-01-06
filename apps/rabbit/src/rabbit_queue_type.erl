@@ -226,7 +226,7 @@ is_enabled(Type) ->
 declare(Q0, Node) ->
     Q = rabbit_queue_decorator:set(rabbit_policy:set(Q0)),
     Mod = amqqueue:get_type(Q),
-    ?LOG_CHANNEL_METHOD_CALL(#{'Q' => Q, 'Mod' => Mod, 'Node' => Node}),
+    ?LOG_queue_declare(#{'Q' => Q, 'Mod' => Mod, 'Node' => Node}),
     % ==========log channel method call ========{rabbit_queue_type,228}==============
     % #{'Mod' => rabbit_classic_queue,'Node' => 'rabbit@maomao-VirtualBox',
     Mod:declare(Q, Node).
@@ -342,13 +342,13 @@ new(Q, State) when ?is_amqqueue(Q) ->
 -spec consume(amqqueue:amqqueue(), consume_spec(), state()) ->
     {ok, state(), actions()} | {error, term()}.
 consume(Q, Spec, State) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'Spec' => Spec, 'Q' => Q, 'State' => State}),
+    ?LOG_sub(#{'Spec' => Spec, 'Q' => Q, 'State' => State}),
     #ctx{state = CtxState0} = Ctx = get_ctx(Q, State),
     Mod = amqqueue:get_type(Q),
-    ?LOG_CHANNEL_METHOD_CALL(#{'Mod' => Mod}), %% #{'Mod' => rabbit_classic_queue}
+    ?LOG_sub(#{'Mod' => Mod}), %% #{'Mod' => rabbit_classic_queue}
     case Mod:consume(Q, Spec, CtxState0) of
         {ok, CtxState, Actions} ->
-            ?LOG_CHANNEL_METHOD_CALL(#{'CtxState' => CtxState, 'Actions' => Actions}),
+            ?LOG_sub(#{'CtxState' => CtxState, 'Actions' => Actions}),
             return_ok(set_ctx(Q, Ctx#ctx{state = CtxState}, State), Actions);
         Err ->
             Err
@@ -501,8 +501,9 @@ module(QRef, Ctxs) ->
 -spec deliver([amqqueue:amqqueue()], Delivery :: term(),
               stateless | state()) ->
     {ok, state(), actions()} | {error, Reason :: term()}.
+%%rabbit_channel 模块 2294行左右调用转过来的,
 deliver(Qs, Delivery, State) ->
-    ?LOG_CHANNEL_METHOD_CALL(#{'Qs' => Qs, 'Delivery' => Delivery, 'State' => State}),
+%%    ?LOG_pub(#{'Qs' => Qs, 'Delivery' => Delivery, 'State' => State}),
     try
         deliver0(Qs, Delivery, State)
     catch
@@ -516,6 +517,7 @@ deliver0(Qs, Delivery, stateless) ->
                           _ = Mod:deliver([{Q, stateless}], Delivery)
                   end, Qs),
     {ok, stateless, []};
+%% 由上面几行 deliver 转过来,
 deliver0(Qs, Delivery, #?STATE{} = State0) ->
     %% TODO: optimise single queue case?
     %% sort by queue type - then dispatch each group
@@ -528,11 +530,12 @@ deliver0(Qs, Delivery, #?STATE{} = State0) ->
                                     [{Q, Ctx#ctx.state} | A]
                             end, [{Q, Ctx#ctx.state}], Acc)
                end, #{}, Qs),
-    ?LOG_CHANNEL_METHOD_CALL(#{'ByType' => ByType}),
+    %?LOG_pub(#{'ByType' => ByType}),
     %%% dispatch each group to queue type interface?
     {Xs, Actions} = maps:fold(fun(Mod, QSs, {X0, A0}) ->
-                                    ?LOG_CHANNEL_METHOD_CALL(#{'Mod' => Mod, 'QSs' => QSs, 'Delivery' => Delivery}),
+                                    %?LOG_pub(#{'Mod' => Mod, 'QSs' => QSs, 'Delivery' => Delivery}),
                                     %% 'Mod' => rabbit_classic_queue,
+                                    %% QSs : 队列相关的变量; Delivery: 消息相关的变量
                                       {X, A} = Mod:deliver(QSs, Delivery),
                                       {X0 ++ X, A0 ++ A}
                               end, {[], []}, ByType),
@@ -541,7 +544,7 @@ deliver0(Qs, Delivery, #?STATE{} = State0) ->
                       Ctx = get_ctx_with(Q, Acc, S),
                       set_ctx(qref(Q), Ctx#ctx{state = S}, Acc)
               end, State0, Xs),
-    ?LOG_CHANNEL_METHOD_CALL(#{'State' => State, 'Actions' => Actions}),
+%%    ?LOG_pub(#{'State' => State, 'Actions' => Actions}),
     return_ok(State, Actions).
 
 

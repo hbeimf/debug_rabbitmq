@@ -219,11 +219,13 @@ purge_acks(State = #passthrough{bq = BQ, bqs = BQS}) ->
     ?passthrough1(purge_acks(BQS)).
 
 publish(Msg, MsgProps, IsDelivered, ChPid, Flow, State = #state{bq = BQ}) ->
+    ?LOG_pub(#{'BQ' => BQ}),
     pick1(fun (_P, BQSN) ->
                   BQ:publish(Msg, MsgProps, IsDelivered, ChPid, Flow, BQSN)
           end, Msg, State);
 publish(Msg, MsgProps, IsDelivered, ChPid, Flow,
         State = #passthrough{bq = BQ, bqs = BQS}) ->
+    ?LOG_pub(#{'BQ' => BQ}), %% 'BQ' => rabbit_variable_queue,
     ?passthrough1(publish(Msg, MsgProps, IsDelivered, ChPid, Flow, BQS)).
 
 batch_publish(Publishes, ChPid, Flow, State = #state{bq = BQ, bqss = [{MaxP, _} |_]}) ->

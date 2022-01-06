@@ -18,14 +18,36 @@
 % -define(LOG3(X), true).
 
 
--define(LOG_START(X), io:format("~n==========log start begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
-% -define(LOG_START(X), true).
+% -define(LOG_START(X), io:format("~n==========log start begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_START(X), true).
 
--define(LOG_CLIENT_REQ(X), io:format("~n==========log LOG_CLIENT_REQ begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
-% -define(LOG_CLIENT_REQ(X), true).
+% -define(LOG_CLIENT_REQ(X), io:format("~n==========log LOG_CLIENT_REQ begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_CLIENT_REQ(X), true).
 
--define(LOG_SUB(X), io:format("~n==========log LOG_SUB begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
-% -define(LOG_SUB(X), true).
+% -define(LOG_SUB(X), io:format("~n==========log LOG_SUB begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_SUB(X), true).
+
+%% 声明队列
+% -define(LOG_queue_declare(X), io:format("~n==========log LOG_queue_declare begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_queue_declare(X), true).
+
+%% 声明绑定　
+% -define(LOG_queue_bind(X), io:format("~n==========log LOG_queue_bind begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_queue_bind(X), true).
+
+
+%%　声明交换机
+% -define(LOG_exchange_declare(X), io:format("~n==========log LOG_exchange_declare begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_exchange_declare(X), true).
+
+
+%% 发布消息
+% -define(LOG_pub(X), io:format("~n==========log LOG_pub begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_pub(X), true).
+
+%% 消费消息
+-define(LOG_sub(X), io:format("~n==========log LOG_sub begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+% -define(LOG_sub(X), true).
 
 %% =====================================================
 %% =====================================================
@@ -35,8 +57,8 @@
 
 %% 下面四条日志过后就建立了稳定的连接
 
--define(LOG_REQ(X), io:format("==========log request begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
-% -define(LOG_REQ(X), true).
+% -define(LOG_REQ(X), io:format("==========log request begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_REQ(X), true).
 
 % ==========log request begin========{rabbit_reader,1217}==============
 % #{'MethodName' => 'connection.start_ok',

@@ -157,12 +157,40 @@ invoke_no_result(Pid, FunOrMFA) when is_pid(Pid) ->
     ok;
 invoke_no_result([], _FunOrMFA) -> %% optimisation
     ok;
+
+%% Pid : 队列相关
+%% FunOrMFA: 消息相关的 mfa
 invoke_no_result([Pid], FunOrMFA) when node(Pid) =:= node() -> %% optimisation
-    Mfa = glib_tool:pid_info(Pid),
-    ?LOG_CHANNEL_METHOD_CALL(#{'mfa' => Mfa, 'FunOrMFA' => FunOrMFA, 'Pid' => Pid}),
+%%    Mfa = glib_tool:pid_info(Pid),
+%%    ?LOG_pub(#{'mfa' => Mfa, 'FunOrMFA' => FunOrMFA, 'Pid' => Pid}),
 
     _ = safe_invoke(Pid, FunOrMFA), %% must not die
     ok;
+%%==========log LOG_pub begin========{delegate,162}==============
+%%#{'FunOrMFA' =>
+%%  {gen_server2,cast,
+%%    [{deliver,
+%%      {delivery,false,false,<0.3593.0>,
+%%      {basic_message,
+%%      {resource,<<"/">>,exchange,<<"account_log">>},
+%%      [<<>>],
+%%      {content,60,
+%%      {'P_basic',undefined,undefined,undefined,
+%%      undefined,undefined,undefined,undefined,
+%%      undefined,undefined,undefined,undefined,
+%%      undefined,undefined,undefined},
+%%      <<0,0>>,
+%%      rabbit_framing_amqp_0_9_1,
+%%      [<<"{\"id\":1}">>]},
+%%      <<0,148,227,125,135,35,216,226,231,157,48,39,20,168,157,
+%%      251>>,
+%%      false},
+%%      undefined,flow},
+%%      false}]},
+%%'Pid' => <0.3597.0>,
+%%mfa => {rabbit_prequeue,init,1}}  %% 此处Pid 的启动模块虽然是 rabbit_prequeue;
+%% 但由于gen_server2启动时init返回了回调模块 {rabbit_amqqueue_process}
+
 invoke_no_result([Pid], FunOrMFA) ->
     RemoteNode  = node(Pid),
     gen_server2:abcast([RemoteNode], delegate(self(), ?DEFAULT_NAME, [RemoteNode]),
@@ -208,16 +236,16 @@ delegate(Pid, Prefix, RemoteNodes) ->
     end.
 
 safe_invoke(Pids, FunOrMFA) when is_list(Pids) ->
-    ?LOG_CHANNEL_METHOD_CALL(here),
+%%    ?LOG_CHANNEL_METHOD_CALL(here),
     [safe_invoke(Pid, FunOrMFA) || Pid <- Pids];
 safe_invoke(Pid, FunOrMFA) when is_pid(Pid) ->
-    ?LOG_CHANNEL_METHOD_CALL(here),
+%%    ?LOG_pub(here),
     try
         Var = apply1(FunOrMFA, Pid),
-        ?LOG_CHANNEL_METHOD_CALL(#{'Var' => Var, 'FunOrMFA' => FunOrMFA, 'Pid' => Pid}),
+        ?LOG_pub(#{'Var' => Var, 'FunOrMFA' => FunOrMFA, 'Pid' => Pid}),
         {ok, Pid, Var}
     catch Class:Reason:Stacktrace ->
-        ?LOG1(#{ class => Class, reason => Reason, 'Stacktrace' => Stacktrace}),
+        ?LOG_pub(#{ class => Class, reason => Reason, 'Stacktrace' => Stacktrace}),
             {error, Pid, {Class, Reason, Stacktrace}}
     end.
 

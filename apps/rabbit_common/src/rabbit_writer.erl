@@ -148,6 +148,7 @@
 start(Sock, Channel, FrameMax, Protocol, ReaderPid, Identity) ->
     start(Sock, Channel, FrameMax, Protocol, ReaderPid, Identity, false).
 
+%% 这个actor启动后　pid　会放在　rabbit_channel 的状态里,当要发送消息时,　会由pid发送到这个actor来处理,
 start_link(Sock, Channel, FrameMax, Protocol, ReaderPid, Identity) ->
     start_link(Sock, Channel, FrameMax, Protocol, ReaderPid, Identity, false).
 
@@ -261,6 +262,7 @@ handle_message({send_command_and_notify, QPid, ChPid, MethodRecord}, State) ->
     State1;
 handle_message({send_command_and_notify, QPid, ChPid, MethodRecord, Content},
                State) ->
+    ?LOG_sub(here),
     State1 = internal_send_command_async(MethodRecord, Content, State),
     rabbit_amqqueue_common:notify_sent(QPid, ChPid),
     State1;
@@ -308,6 +310,7 @@ send_command_and_notify(W, Q, ChPid, MethodRecord) ->
     ok.
 
 send_command_and_notify(W, Q, ChPid, MethodRecord, Content) ->
+    ?LOG_sub(here),
     W ! {send_command_and_notify, Q, ChPid, MethodRecord, Content},
     ok.
 
@@ -357,6 +360,8 @@ internal_send_command_async(MethodRecord,
                                             pending   = Pending}) ->
 
     ?LOG2(here),
+    ?LOG_sub(here),
+
     Frame = assemble_frame(Channel, MethodRecord, Protocol),
     maybe_flush(State#wstate{pending = [Frame | Pending]}).
 
@@ -367,6 +372,7 @@ internal_send_command_async(MethodRecord, Content,
                                             pending      = Pending,
                                             writer_gc_threshold = GCThreshold}) ->
     ?LOG2(here),
+    ?LOG_sub(here),  %% 下发消息给　ｓｕｂ　转到这里来了　,
     Frames = assemble_frames(Channel, MethodRecord, Content, FrameMax,
                              Protocol),
     maybe_gc_large_msg(Content, GCThreshold),
@@ -381,15 +387,18 @@ internal_send_command_async(MethodRecord, Content,
 %% exceeding the MSS.
 -define(FLUSH_THRESHOLD, 1414).
 
+%%?LOG_sub(here),
 maybe_flush(State = #wstate{pending = Pending}) ->
     case iolist_size(Pending) >= ?FLUSH_THRESHOLD of
         true  -> internal_flush(State);
         false -> State
     end.
 
+%%?LOG_sub(here),
 internal_flush(State = #wstate{pending = []}) ->
     State;
 internal_flush(State = #wstate{sock = Sock, pending = Pending}) ->
+    ?LOG_sub(here),
     ok = port_cmd(Sock, lists:reverse(Pending)),
     State#wstate{pending = []}.
 
@@ -411,7 +420,9 @@ internal_flush(State = #wstate{sock = Sock, pending = Pending}) ->
 %% Also note that the port has bounded buffers and port_command blocks
 %% when these are full. So the fact that we process the result
 %% asynchronously does not impact flow control.
+%%?LOG_sub(here),
 port_cmd(Sock, Data) ->
+    ?LOG_sub(here),
     true = try rabbit_net:port_command(Sock, Data)
            catch error:Error -> exit({writer, send_failed, Error})
            end,
