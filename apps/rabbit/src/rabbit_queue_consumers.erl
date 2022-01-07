@@ -216,8 +216,14 @@ send_drained() -> [update_ch_record(send_drained(C)) || C <- all_ch_record()],
 %% 共有两处调用,　
 %% 一处是pub数据的时候;　一旦pub了数据就立马尝试下发给sub端,　所以得调用这个来下发,
 %% 　一处是声明sub的时候;　一旦声明是个消费端,就立马尝试消费掉队列里积压的数据　
+%% FetchFun => #Fun<rabbit_amqqueue_process.26.25651354>; 获取消息的回调;
+%% QName => {resource,<<"/">>,queue,<<"queue.account_log">>};　队列名;
+%% State => {state,{queue,[{<0.3633.0>, {consumer,<<"amq.ctag-yVdbGXOy7nLiSQDlDTSLDg">>,true,0, [],<<"guest">>}}], [],1}, {active,-576460742087252,0.526238742931639}}
+%%　包含消费者相关的信息;
 deliver(FetchFun, QName, State, SingleActiveConsumerIsOn, ActiveConsumer) ->
-    ?LOG_sub(#{'FetchFun' => FetchFun, 'QName' => QName, 'State' => State, 'SingleActiveConsumerIsOn' => SingleActiveConsumerIsOn, 'ActiveConsumer' => ActiveConsumer}),
+    ?LOG_pub1(#{'FetchFun' => FetchFun, 'QName' => QName, 'State' => State
+      , 'SingleActiveConsumerIsOn' => SingleActiveConsumerIsOn, 'ActiveConsumer' => ActiveConsumer}
+    , "所有下发的消息都从这里过,一夫当关万夫莫开"),
     deliver(FetchFun, QName, false, State, SingleActiveConsumerIsOn, ActiveConsumer).
 
 %%==========log LOG_sub begin========{rabbit_queue_consumers,220}==============

@@ -40,11 +40,19 @@
             %% for mirrored queues, this will be rabbit_mirror_queue_master.
             %% for non-priority and non-mirrored queues, rabbit_variable_queue.
             %% see rabbit_backing_queue.
+            %% 值似乎是 : rabbit_priority_queue
             backing_queue,
             %% backing queue state.
             %% see rabbit_backing_queue, rabbit_variable_queue.
+            %% 如果有消息,似乎就是存在下面这个字段里,得跟一下这个字段的什是怎么初始化的?
+            %% BQS 结构:
+            %% #passthrough{bq  = rabbit_variable_queue,
+            %%              bqs = #vqstate{}};
+            %%　#vqstate{}　定义在:　rabbit_variable_queue　模块里,　真是巨大的一个定义　
+            %% 初始化大概在　rabbit_variable_queue:init/8  1403 行左右;
             backing_queue_state,
             %% consumers state, see rabbit_queue_consumers
+            %%　消费者放在下面这个字段里,　这个字段和上面的　backing_queue_state　两个字段是下发消息的关键字段　,一个与消费者相关,一个与消息相关,
             consumers,
             %% queue expiration value
             expires,
@@ -271,13 +279,20 @@ init_it2(Recover, From, State = #q{q                   = Q,
                     ok = rabbit_memory_monitor:register(
                            self(), {rabbit_amqqueue,
                                     set_ram_duration_target, [self()]}),
-                    BQ = backing_queue_module(Q1),
-                    BQS = bq_init(BQ, Q, TermsOrNew),
+                    BQ = backing_queue_module(Q1), %% 初始化取消息的模块,
+                    BQS = bq_init(BQ, Q, TermsOrNew),%%　ｐｕｂ来的消息似乎就存在这个字段里, 这两个字段的初始化都得跟一下 ,
+                    %% ?LOG_sub2(BQS),
+                    %% BQS 结构:
+                    %% #passthrough{bq  = rabbit_variable_queue,
+                    %%              bqs = #vqstate{}};
+                    %%　#vqstate{}　定义在:　rabbit_variable_queue　模块里,　真是巨大的一个定义　
+                    %% 初始化大概在　rabbit_variable_queue:init/8  1403 行左右;
+
                     send_reply(From, {new, Q}),
                     recovery_barrier(Barrier),
                     State1 = process_args_policy(
                                State#q{backing_queue       = BQ,
-                                       backing_queue_state = BQS}),
+                                       backing_queue_state = BQS}), %%
                     notify_decorators(startup, State),
                     rabbit_event:notify(queue_created,
                                         infos(?CREATION_EVENT_KEYS, State1)),
@@ -473,12 +488,25 @@ decorator_callback(QName, F, A) ->
             ok
     end.
 
+%% 这个函数的返回里将来会存放ｐｕｂ来的消息,得跟下是怎么初始化的,
+%% 声明ｓｕｂ时就是尝试从这个里面取消息来下发的,
 bq_init(BQ, Q, Recover) ->
+    ?LOG_sub2(#{'BQ' => BQ, 'Q' => Q, 'Recover' => Recover}),
     Self = self(),
     BQ:init(Q, Recover,
             fun (Mod, Fun) ->
                     rabbit_amqqueue:run_backing_queue(Self, Mod, Fun)
             end).
+
+% ==========log LOG_sub2 begin========{rabbit_amqqueue_process,481}==============
+% #{'BQ' => rabbit_priority_queue,
+%     'Q' =>
+%         {amqqueue,{resource,<<"/">>,queue,<<"data.account_log">>},
+%                 true,false,none,[],<0.5500.0>,[],[],[],undefined,undefined,[],
+%                 [],live,0,[],<<"/">>,
+%                 #{user => <<"guest">>},
+%                 rabbit_classic_queue,#{}},
+%     'Recover' => new}
 
 process_args_policy(State = #q{q                   = Q,
                                args_policy_version = N}) ->
@@ -721,10 +749,16 @@ discard(#delivery{confirm = Confirm,
 %% 这里冒似是将消息下发给　Ｓｕｂ　端
 run_message_queue(State) -> run_message_queue(false, State).
 
+%%　从这里的传参下发来看,　只要有队列的状态就可以下发消息给消费者
+%%　消息从　backing_queue_state　这个字段里印射出来,
+%%　消费者从　consumers　这个字段里映射出来,
 run_message_queue(ActiveConsumersChanged, State) ->
-    ?LOG_sub(here),
+    ?LOG_sub(here, "当声明消费者后,立马尝试下发消息给消费者,这个时候消费者已经放在了状态的字段里"),
     case is_empty(State) of
         true  -> maybe_notify_decorators(ActiveConsumersChanged, State);
+        %% 当一个连接声明自己是sub的时候, 会立马尝试去下发消息{假如之前有积压消息的话}给这个消费连接,
+        %% 第一个参数为获取sub声明 之前积压的消息,如果下如成功, 会递归下发直到消息下发完.
+        %% 下面就去跟一下 fetch/2 函数 ,看看是怎么取的被持久化的消息,这也是个找到消息持久化的线索.
         false -> case rabbit_queue_consumers:deliver(
                         fun(AckRequired) -> fetch(AckRequired, State) end,
                         qname(State), State#q.consumers,
@@ -752,6 +786,9 @@ attempt_delivery(Delivery = #delivery{sender  = SenderPid,
     ?LOG_CHANNEL_METHOD_CALL(#{'Delivery' => Delivery, 'Message' => Message, 'SenderPid' => SenderPid}),
 
     %%　下面的这一句的调用会将数据下发给sub端,　得仔细跟下,　
+    %% 当客户端pub消息的时候会调用下面这句去下发消息给sub端; 第一个参数就是要下发的消息的回调,
+    %% 通过这个高阶函数来获得消息相关的返回,这里是下发的逻辑 ,所以返回的很直接, 不需要去查找啥的,消息直接从 Delivery 里取出按格式返回即可
+    ?LOG_pub1(here, "下发消息开始"),
     case rabbit_queue_consumers:deliver(
            fun (true)  -> true = BQ:is_empty(BQS),
                           {AckTag, BQS1} =
@@ -788,7 +825,8 @@ maybe_deliver_or_enqueue(Delivery = #delivery{message = Message},
                                     dlx                 = DLX,
                                     dlx_routing_key     = RK}) ->
 
-    ?LOG_pub(#{'Delivery' => Delivery, 'Message' => Message}),
+    %?LOG_pub1(here, "中文说明测试"),
+    ?LOG_pub1(#{'Delivery' => Delivery}, "生产端发来等待下发的消息被放在　Delivery　里"),
 
     send_mandatory(Delivery), %% must do this before confirms
     case {will_overflow(Delivery, State), Overflow} of
@@ -827,10 +865,10 @@ deliver_or_enqueue(Delivery = #delivery{message = Message,
                                         flow    = Flow},
                    Delivered,
                    State = #q{q = Q, backing_queue = BQ}) ->
-    ?LOG_pub(#{'Delivery' => Delivery, 'Delivered' => Delivered, 'SenderPid' => SenderPid}),
+    %%?LOG_pub1(#{'Delivery' => Delivery, 'Delivered' => Delivered, 'SenderPid' => SenderPid}),
     {Confirm, State1} = send_or_record_confirm(Delivery, State),
     Props = message_properties(Message, Confirm, State1),
-%%    ?LOG_pub(#{'Delivery' => Delivery, 'Props' => Props, 'Delivered' => Delivered, 'State1' => State1}),
+    ?LOG_pub1(#{'Delivery' => Delivery, 'Props' => Props, 'Delivered' => Delivered}, "尝试将消息发送到消费端去"),
     case attempt_delivery(Delivery, Props, Delivered, State1) of
         {delivered, State2} ->
           ?LOG_pub(here),
@@ -937,13 +975,21 @@ requeue_and_run(AckTags, State = #q{backing_queue       = BQ,
     {_Dropped, State1} = maybe_drop_head(State#q{backing_queue_state = BQS1}),
     run_message_queue(maybe_send_drained(WasEmpty, drop_expired_msgs(State1))).
 
+%% 这里似乎是去取pub端pub后但未下发给sub端的消息;
+%% 经过跟踪, 如果有消息,消息似乎就包含在 BQS 里, 消息就是从 BQS 里一步步去壳后得到的,
+%% 接下来就得跟一下 backing_queue_state = BQS 这个值是怎么初始化的,?
 fetch(AckRequired, State = #q{backing_queue       = BQ,
                               backing_queue_state = BQS}) ->
-    ?LOG_SUB(BQ),
+    ?LOG_sub1(#{'BQ' => BQ, 'AckRequired' =>AckRequired, 'BQS' => BQS}), %%　#{'AckRequired' => true,'BQ' => rabbit_priority_queue}
 
     {Result, BQS1} = BQ:fetch(AckRequired, BQS),
+    %%?LOG_sub1(#{'Result' => Result, 'BQS1' =>BQS1}),
+
     State1 = drop_expired_msgs(State#q{backing_queue_state = BQS1}),
-    {Result, maybe_send_drained(Result =:= empty, State1)}.
+    Reply = {Result, maybe_send_drained(Result =:= empty, State1)},
+    %% ?LOG_sub1(Reply),
+    Reply.
+
 
 ack(AckTags, ChPid, State) ->
     subtract_acks(ChPid, AckTags, State,
@@ -1421,6 +1467,7 @@ handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
     %% amqp_channel:subscribe(Channel, #'basic.consume'{queue = Queue, no_ack = false}, self()), 客户端的这句调用转到了这里,　
     %%　声明一个消费者转到了这里,
     %%  ?LOG_SUB(BQ),
+  ?LOG_sub(#{'Consumers' => Consumers, 'Holder' => Holder}, "添加消费者之前消费者字段的情况"),
     ConsumerRegistration = case SingleActiveConsumerOn of
         true ->
             case ExclusiveConsume of
@@ -1432,7 +1479,7 @@ handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
                     LimiterPid, LimiterActive,
                     PrefetchCount, Args, is_empty(State),
                     ActingUser, Consumers),
-                  ?LOG_sub(#{'Consumers1' => Consumers1, 'Holder' => Holder}),
+                  ?LOG_sub(#{'Consumers1' => Consumers1, 'Holder' => Holder}, "添加新消费者之后的情况"),
 
                   case Holder of
                       none ->
@@ -1455,13 +1502,13 @@ handle_call({basic_consume, NoAck, ChPid, LimiterPid, LimiterActive,
                                    PrefetchCount, Args, is_empty(State),
                                    ActingUser, Consumers),
 
-
+                    ?LOG_sub(#{'Consumers1' => Consumers1, 'Holder' => Holder}, "添加新消费者之后的情况"),
                     ExclusiveConsumer =
                         if ExclusiveConsume -> {ChPid, ConsumerTag};
                            true             -> Holder
                         end,
                     ?LOG_sub(#{'Consumers1' => Consumers1, 'ExclusiveConsumer' => ExclusiveConsumer}),
-                    {state, State#q{consumers          = Consumers1,
+                    {state, State#q{consumers          = Consumers1, %%将最新的消费者状态更新到队列ａｃｔｏｒ的状态里
                                     has_had_consumers  = true,
                                     active_consumer    = ExclusiveConsumer}}
             end
@@ -1642,7 +1689,7 @@ handle_cast({deliver,
                                   flow   = Flow},
              SlaveWhenPublished},
             State = #q{senders = Senders}) ->
-    ?LOG_pub(#{'Delivery' => Delivery, 'SlaveWhenPublished' => SlaveWhenPublished}),
+    ?LOG_pub1(#{'Delivery' => Delivery, 'SlaveWhenPublished' => SlaveWhenPublished}),
     %% 消息被　ｐｕｂ　到这里来了, 
 
     Senders1 = case Flow of
@@ -1658,6 +1705,7 @@ handle_cast({deliver,
                    noflow -> Senders
                end,
     State1 = State#q{senders = Senders1},
+    ?LOG_pub1(here, "中文说明测试"),
     noreply(maybe_deliver_or_enqueue(Delivery, SlaveWhenPublished, State1));
 %% [0] The second ack is since the channel thought we were a mirror at
 %% the time it published this message, so it used two credits (see

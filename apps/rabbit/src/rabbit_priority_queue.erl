@@ -141,6 +141,7 @@ collapse_recovery(QNames, DupNames, Recovery) ->
                               end, dict:new(), lists:zip(DupNames, Recovery)),
     [dict:fetch(Name, NameToTerms) || Name <- QNames].
 
+%%
 priorities(Q) when ?is_amqqueue(Q) ->
     Args = amqqueue:get_arguments(Q),
     Ints = [long, short, signedint, byte, unsignedbyte, unsignedshort, unsignedint],
@@ -157,16 +158,32 @@ priorities(Q) when ?is_amqqueue(Q) ->
 
 %%----------------------------------------------------------------------------
 
+%% 这个函数的返回里将来会存放ｐｕｂ来的消息,得跟下是怎么初始化的,
+%% 声明ｓｕｂ时就是尝试从这个里面取消息来下发的,
+%% 初始化新队列时, 从rabbit_amqqueue_process:bq_init/3 调用的这里作为返回.
+%% ?LOG_sub2
+% AsyncCallback:
+% fun (Mod, Fun) ->
+%         rabbit_amqqueue:run_backing_queue(Self, Mod, Fun)
+% end
 init(Q, Recover, AsyncCallback) ->
+    ?LOG_sub2(#{'Q' => Q, 'Recover' => Recover}),
     BQ = bq(),
+    % ?LOG_sub2(#{'BQ' => BQ}), %% #{'BQ' => rabbit_variable_queue}
     case priorities(Q) of
-        none -> RealRecover = case Recover of
+        none -> 
+                ?LOG_sub2(here), %% 转到这个分支了,
+                RealRecover = case Recover of
                                   [R] -> R; %% [0]
                                   R   -> R
                               end,
+                % ?LOG_sub2(#{'BQ' => BQ, 'RealRecover' => RealRecover}), 
+                % #{'BQ' => rabbit_variable_queue,'RealRecover' => new}
                 #passthrough{bq  = BQ,
                              bqs = BQ:init(Q, RealRecover, AsyncCallback)};
-        Ps   -> Init = fun (P, Term) ->
+        Ps   -> 
+                ?LOG_sub2(here),
+                Init = fun (P, Term) ->
                                BQ:init(
                                  mutate_name(P, Q), Term,
                                  fun (M, F) -> AsyncCallback(M, {P, F}) end)
@@ -184,6 +201,16 @@ init(Q, Recover, AsyncCallback) ->
 %% terms in priority order, even for non priority queues. It's easier
 %% to do that and "unwrap" in init/3 than to have collapse_recovery be
 %% aware of non-priority queues.
+
+% ==========log LOG_sub2 begin========{rabbit_priority_queue,164}==============
+% #{'Q' =>
+%       {amqqueue,{resource,<<"/">>,queue,<<"data.account_log">>},
+%                 true,false,none,[],<0.3626.0>,[],[],[],undefined,undefined,[],
+%                 [],live,0,[],<<"/">>,
+%                 #{user => <<"guest">>},
+%                 rabbit_classic_queue,#{}},
+%   'Recover' => new}
+
 
 have_recovery_terms(new)                -> false;
 have_recovery_terms(non_clean_shutdown) -> false;
@@ -309,7 +336,10 @@ fetchwhile(Pred, Fun, Acc, State = #state{bq = BQ}) ->
 fetchwhile(Pred, Fun, Acc, State = #passthrough{bq = BQ, bqs = BQS}) ->
     ?passthrough3(fetchwhile(Pred, Fun, Acc, BQS)).
 
+%% LOG_sub1
+%% 这里似乎是去取pub端pub后但未下发给sub端的消息;
 fetch(AckRequired, State = #state{bq = BQ}) ->
+    ?LOG_sub1(here),
     find2(
       fun (P, BQSN) ->
               case BQ:fetch(AckRequired, BQSN) of
@@ -318,7 +348,15 @@ fetch(AckRequired, State = #state{bq = BQ}) ->
               end
       end, empty, State);
 fetch(AckRequired, State = #passthrough{bq = BQ, bqs = BQS}) ->
+    ?LOG_sub1(#{'BQ' => BQ}), %% 似乎是转到这个分支来了,
     ?passthrough2(fetch(AckRequired, BQS)).
+
+%%==========log LOG_sub1 begin========{rabbit_priority_queue,324}==============
+%%#{'BQ' => rabbit_variable_queue}
+%% 上面这个宏展开:　{Res, BQS1} = rabbit_variable_queue:fetch(AckRequired, BQS), {Res, State#passthrough{bqs = BQS1}})
+
+%%-define(passthrough2(F),
+%%  {Res, BQS1} = BQ:F, {Res, State#passthrough{bqs = BQS1}}).
 
 drop(AckRequired, State = #state{bq = BQ}) ->
     find2(fun (P, BQSN) ->

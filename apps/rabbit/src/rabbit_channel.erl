@@ -1339,6 +1339,8 @@ handle_method(#'basic.publish'{immediate = true}, _Content, _State) ->
     rabbit_misc:protocol_error(not_implemented, "immediate=true", []);
 
 %%rabbit_pub_account_log:pub_test().
+%% 客户端ｐｕｂ消息转到这里来了,　
+%%　这里包括了重要的绑定关系和要发布的内容,
 handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
                                routing_key = RoutingKey,
                                mandatory   = Mandatory},
@@ -1356,6 +1358,12 @@ handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
                                    delivery_flow    = Flow
                                    }) ->
     ?LOG_pub(#{'Content' => Content, 'ExchangeNameBin' =>ExchangeNameBin, 'RoutingKey' =>RoutingKey, 'Mandatory' =>Mandatory, 'VHostPath' => VHostPath}),
+    % ==========log LOG_pub begin========{rabbit_channel,1360}==============
+    % #{'Content' =>
+    %     {content,60,none,<<0,0>>,rabbit_framing_amqp_0_9_1,[<<"{\"id\":1}">>]},
+    % 'ExchangeNameBin' => <<"exchange.account_log">>,'Mandatory' => false,
+    % 'RoutingKey' => <<"routing_key.account_log">>,'VHostPath' => <<"/">>}
+
     State0 = maybe_increase_global_publishers(State),
 %%    ?LOG_pub(#{'State0' => State0}),
     rabbit_global_counters:messages_received(amqp091, 1),
@@ -1393,17 +1401,47 @@ handle_method(#'basic.publish'{exchange    = ExchangeNameBin,
             Delivery = rabbit_basic:delivery(
                          Mandatory, DoConfirm, Message, MsgSeqNo), %% 构造 Delivery
             QNames = rabbit_exchange:route(Exchange, Delivery), %% 找出匹配到的队列名
-%%            ?LOG_pub(#{'Delivery' => Delivery, 'QNames' => QNames}),
+           ?LOG_pub(#{'Delivery' => Delivery, 'QNames' => QNames, 'Exchange' => Exchange}),
+            %    ==========log LOG_pub begin========{rabbit_channel,1404}==============
+            %    #{'Delivery' =>
+            %          {delivery,false,false,<0.3594.0>,
+            %              {basic_message,
+            %                  {resource,<<"/">>,exchange,<<"exchange.account_log">>},
+            %                  [<<"routing_key.account_log">>],
+            %                  {content,60,
+            %                      {'P_basic',undefined,undefined,undefined,undefined,
+            %                          undefined,undefined,undefined,undefined,undefined,
+            %                          undefined,undefined,undefined,undefined,undefined},
+            %                      <<0,0>>,
+            %                      rabbit_framing_amqp_0_9_1,
+            %                      [<<"{\"id\":1}">>]},
+            %                  <<235,148,72,87,3,109,211,200,221,6,251,146,124,218,196,117>>,
+            %                  false},
+            %              undefined,noflow},
+            %      'Exchange' =>
+            %          {exchange,
+            %              {resource,<<"/">>,exchange,<<"exchange.account_log">>},
+            %              direct,true,false,false,[],undefined,undefined,undefined,
+            %              {[],[]},
+            %              #{user => <<"guest">>}},
+            %      'QNames' => [{resource,<<"/">>,queue,<<"queue.account_log">>}]}
+
 
             rabbit_trace:tap_in(Message, QNames, ConnName, ChannelNum,
                                 Username, TraceState),
-            DQ = {Delivery#delivery{flow = Flow}, QNames},
+            DQ = {Delivery#delivery{flow = Flow}, QNames}, %% 这个变量　DQ　里包含了要下发的消息　Delivery　和待投递的队列　QNames;
 %%            ?LOG_pub(#{'DQ' => DQ}),
             {noreply, case Tx of
                           none ->
                                 ?LOG_pub(#{'DQ' => DQ}),
                               %% 从目前的分析来看, 这上面就是为了构造出 Delivery, QNames 二者的绑定关系 ,
-                              deliver_to_queues(DQ, State1);
+                              %% 下面这个调用一路跟下去,大概会转到　rabbit_amqqueue_process:handle_cast/3  
+                              %% 1680 行的　MMsg = {deliver, Delivery, false},　
+                              %%　这个模式处,这个消息是由 rabbit_classic_queue:deliver/2
+                              %%　大概是　３５８　行左右调用的,
+                              %%　省去中间琐碎细节,直接去　rabbit_amqqueue_process:handle_cast/3  1680行处查看;
+                              %%  这个地方是消息进入队列的起点处,
+                              deliver_to_queues(DQ, State1); 
                           {Msgs, Acks} ->
                               Msgs1 = ?QUEUE:in(DQ, Msgs),
                               State1#ch{tx = {Msgs1, Acks}}
@@ -2326,6 +2364,7 @@ deliver_to_queues({Delivery = #delivery{message    = Message = #basic_message{ex
               [rabbit_misc:rs(Resource)])
     end;
 %%　一个消息对应多个队列的情况,　这种使用场景是什么了? 客户端怎么构造这样的消息?
+%%　有闲工夫的时候在客户端构造下,说不定有这种使用场景;
 deliver_to_queues({Delivery = #delivery{message    = Message = #basic_message{exchange_name = XName},
                                         mandatory  = Mandatory,
                                         confirm    = Confirm,
@@ -2641,6 +2680,20 @@ handle_method(#'queue.unbind'{queue       = QueueNameBin,
     binding_action(fun rabbit_binding:remove/3,
                    ExchangeNameBin, queue, QueueNameBin,
                    RoutingKey, Arguments, VHostPath, ConnPid, AuthzContext, User);
+
+%% 绑定后在下面四张分布式表里插入一条记录
+%% rabbit_durable_route;
+%% rabbit_semi_durable_route;
+%% rabbit_route;
+%% rabbit_reverse_route;
+%%记录大概如下:
+%%包含交换机,　路由键,　队列等相关信息;　
+%%{route,{binding,
+%%  {resource,<<"/">>,exchange,<<"exchange.account_log">>},
+%%  <<"routing_key.account_log">>,
+%%  {resource,<<"/">>,queue,<<"queue.account_log">>},
+%%[]},
+%%const}
 handle_method(#'queue.bind'{queue       = QueueNameBin,
                             exchange    = ExchangeNameBin,
                             routing_key = RoutingKey,

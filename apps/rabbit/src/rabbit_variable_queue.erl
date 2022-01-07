@@ -512,6 +512,15 @@ stop_msg_store(VHost) ->
     rabbit_vhost_msg_store:stop(VHost, ?PERSISTENT_MSG_STORE),
     ok.
 
+%% 这个函数的返回里将来会存放ｐｕｂ来的消息,得跟下是怎么初始化的,
+%% 声明ｓｕｂ时就是尝试从这个里面取消息来下发的,
+%% 初始化新队列时, 从rabbit_amqqueue_process:bq_init/3 -> rabbit_priority_queue:init/3 -> 调用的这里作为 bqs 返回.
+%% ?LOG_sub2
+
+% Callback:
+% fun (Mod, Fun) ->
+%         rabbit_amqqueue:run_backing_queue(Self, Mod, Fun)
+% end
 init(Queue, Recover, Callback) ->
     init(
       Queue, Recover, Callback,
@@ -526,7 +535,10 @@ init(Q, new, AsyncCallback, MsgOnDiskFun, MsgIdxOnDiskFun, MsgAndIdxOnDiskFun) w
     IsDurable = amqqueue:is_durable(Q),
     IndexState = rabbit_queue_index:init(QueueName,
                                          MsgIdxOnDiskFun, MsgAndIdxOnDiskFun),
+    ?LOG_sub2(#{'QueueName' => QueueName, 'IsDurable' => IsDurable, 'IndexState' => IndexState}),
+
     VHost = QueueName#resource.virtual_host,
+    % init/8 定义在: 1403行左右;
     init(IsDurable, IndexState, 0, 0, [],
          case IsDurable of
              true  -> msg_store_client_init(?PERSISTENT_MSG_STORE,
@@ -535,6 +547,20 @@ init(Q, new, AsyncCallback, MsgOnDiskFun, MsgIdxOnDiskFun, MsgAndIdxOnDiskFun) w
          end,
          msg_store_client_init(?TRANSIENT_MSG_STORE, undefined,
                                AsyncCallback, VHost), VHost);
+
+% ==========log LOG_sub2 begin========{rabbit_variable_queue,538}==============
+% #{'IndexState' =>
+%         {qistate,"/var/lib/rabbitmq/mnesia/rabbit@maomao-VirtualBox/msg_stores/vhosts/628WB79CIFDYO9LJI6DKMI09L/queues/DLMYOI0PNPXQEPQE4G92ZJBQ",
+%                 {#{},[]},
+%                 undefined,0,32768,#Fun<rabbit_variable_queue.2.63084040>,
+%                 #Fun<rabbit_variable_queue.3.63084040>,
+%                 {0,nil},
+%                 {0,nil},
+%                 [],[],
+%                 {resource,<<"/">>,queue,<<"data.account_log">>}},
+%     'IsDurable' => true,
+%     'QueueName' => {resource,<<"/">>,queue,<<"data.account_log">>}}
+                               
 
 %% We can be recovering a transient queue if it crashed
 init(Q, Terms, AsyncCallback, MsgOnDiskFun, MsgIdxOnDiskFun, MsgAndIdxOnDiskFun) when ?is_amqqueue(Q) ->
@@ -673,15 +699,23 @@ fetchwhile(Pred, Fun, Acc, State) ->
          fetch_by_predicate(Pred, Fun, Acc, State),
     {MsgProps, Acc1, a(State1)}.
 
+%% LOG_sub1
+%% 这里似乎是去取pub端pub后但未下发给sub端的消息;
 fetch(AckRequired, State) ->
+    ?LOG_sub1(#{'AckRequired' => AckRequired}), %% #{'AckRequired' => true}
     case queue_out(State) of
         {empty, State1} ->
             {empty, a(State1)};
         {{value, MsgStatus}, State1} ->
+            ?LOG_sub1(#{'MsgStatus' => MsgStatus}),
             %% it is possible that the message wasn't read from disk
             %% at this point, so read it in.
             {Msg, State2} = read_msg(MsgStatus, State1),
+            ?LOG_sub1(#{'Msg' => Msg}),
+
             {AckTag, State3} = remove(AckRequired, MsgStatus, State2),
+            ?LOG_sub1(#{'AckTag' => AckTag}),
+
             {{Msg, MsgStatus#msg_status.is_delivered, AckTag}, a(State3)}
     end.
 
@@ -1365,7 +1399,7 @@ expand_delta(_SeqId, #delta { count       = Count,
 %%----------------------------------------------------------------------------
 %% Internal major helpers for Public API
 %%----------------------------------------------------------------------------
-
+%%　542行左右调用过来的,
 init(IsDurable, IndexState, DeltaCount, DeltaBytes, Terms,
      PersistentClient, TransientClient, VHost) ->
     {LowSeqId, NextSeqId, IndexState1} = rabbit_queue_index:bounds(IndexState),
@@ -1472,7 +1506,10 @@ in_r(MsgStatus = #msg_status { seq_id = SeqId, is_persistent = IsPersistent },
             State #vqstate { q3 = ?QUEUE:in_r(MsgStatus, Q3) }
     end.
 
+%% LOG_sub1
+%% 这里似乎是去取pub端pub后但未下发给sub端的消息;
 queue_out(State = #vqstate { mode = default, q4 = Q4 }) ->
+    ?LOG_sub1(#{'Q4' => Q4}),
     case ?QUEUE:out(Q4) of
         {empty, _Q4} ->
             case fetch_from_q3(State) of

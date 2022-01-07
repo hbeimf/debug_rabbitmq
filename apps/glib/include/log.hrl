@@ -42,12 +42,30 @@
 
 
 %% 发布消息
-% -define(LOG_pub(X), io:format("~n==========log LOG_pub begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+%%-define(LOG_pub(X), io:format("~n==========log LOG_pub begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
 -define(LOG_pub(X), true).
 
+%% 发布消息
+% -define(LOG_pub1(X), io:format("~n===~ts=======log LOG_pub1 begin========{~p,~p}==============~n~p~n~n", ["从进入队列开始用这个日志", ?MODULE,?LINE,X])).
+% -define(LOG_pub1(X, Desc), io:format("~p========================================~n~ts~nＭod: ~p; Line: ~p ;~n~p~n~n", [glib:date_str(), Desc, ?MODULE,?LINE,X])).
+-define(LOG_pub1(X), true).
+-define(LOG_pub1(X, D), true).
+
 %% 消费消息
--define(LOG_sub(X), io:format("~n==========log LOG_sub begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
-% -define(LOG_sub(X), true).
+% -define(LOG_sub(X), io:format("~n==========log LOG_sub begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_sub(X), true).
+-define(LOG_sub(X, Desc), io:format("~p========================================~n~ts~nＭod: ~p; Line: ~p ;~n~p~n~n", [glib:date_str(), Desc, ?MODULE,?LINE,X])).
+
+
+%% 消费消息1
+% -define(LOG_sub1(X), io:format("~n==========log LOG_sub1 begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_sub1(X), true).
+
+%% 消费消息2
+% -define(LOG_sub2(X), io:format("~n==========log LOG_sub2 begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
+-define(LOG_sub2(X), true).
+
+
 
 %% =====================================================
 %% =====================================================
