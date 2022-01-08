@@ -15,6 +15,23 @@ VERSION := 0.1.0
 run: qq
 	./rebar3 shell --name rabbit@maomao-VirtualBox --setcookie debug_rabbitmq_cookie
 
+# 将web管理界面添加进来,
+# maomao@maomao-VirtualBox:~/projects/debug_rabbitmq/apps$ cp ../../rabbitmq-server/deps/rabbitmq_management . -R
+# maomao@maomao-VirtualBox:~/projects/debug_rabbitmq/apps$ cp ../../rabbitmq-server/deps/rabbitmq_management_agent . -R
+# maomao@maomao-VirtualBox:~/projects/debug_rabbitmq/apps$ cp ../../rabbitmq-server/deps/cowboy . -R
+# maomao@maomao-VirtualBox:~/projects/debug_rabbitmq/apps$ cp ../../rabbitmq-server/deps/cowlib . -R
+# maomao@maomao-VirtualBox:~/projects/debug_rabbitmq/apps$ cp -R ../../rabbitmq-server/deps/rabbitmq_web_dispatch .
+
+# web管理界面添加到启动里:
+# http://localhost:15672/#/
+# 新增加的几个app:
+# apps/cowboy/
+# apps/cowlib/
+# apps/rabbitmq_management/
+# apps/rabbitmq_management_agent/
+# apps/rabbitmq_web_dispatch/
+
+
 init:
 	sudo mkdir -p /var/lib/rabbitmq/
 	sudo chmod 777 /var/lib/rabbitmq/ -R

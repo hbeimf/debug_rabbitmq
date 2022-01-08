@@ -11,6 +11,7 @@
     , glib
     , demo
     , rabbitmq_mqtt
+    , rabbitmq_management
    ]},
   {env,[]},
   {modules, []},
