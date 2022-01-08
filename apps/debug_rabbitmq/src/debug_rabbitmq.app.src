@@ -10,6 +10,7 @@
     , rabbit
     , glib
     , demo
+    , rabbitmq_mqtt
    ]},
   {env,[]},
   {modules, []},

@@ -54,8 +54,8 @@
 %% 消费消息
 % -define(LOG_sub(X), io:format("~n==========log LOG_sub begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
 -define(LOG_sub(X), true).
--define(LOG_sub(X, Desc), io:format("~p========================================~n~ts~nＭod: ~p; Line: ~p ;~n~p~n~n", [glib:date_str(), Desc, ?MODULE,?LINE,X])).
-
+%-define(LOG_sub(X, Desc), io:format("~p========================================~n~ts~nＭod: ~p; Line: ~p ;~n~p~n~n", [glib:date_str(), Desc, ?MODULE,?LINE,X])).
+-define(LOG_sub(X, D), true).
 
 %% 消费消息1
 % -define(LOG_sub1(X), io:format("~n==========log LOG_sub1 begin========{~p,~p}==============~n~p~n~n", [?MODULE,?LINE,X])).
@@ -66,6 +66,8 @@
 -define(LOG_sub2(X), true).
 
 
+-define(LOG_plugins(X, Desc), io:format("~p========================================~n~ts~nＭod: ~p; Line: ~p ;~n~p~n~n", [glib:date_str(), Desc, ?MODULE,?LINE,X])).
+%%-define(LOG_plugins(X, D), true).
 
 %% =====================================================
 %% =====================================================

@@ -8,6 +8,7 @@
 -module(rabbit_plugins).
 -include_lib("rabbit_common/include/rabbit.hrl").
 -include_lib("stdlib/include/zip.hrl").
+-include_lib("glib/include/log.hrl").
 
 -export([setup/0, active/0, read_enabled/1, list/1, list/2, dependencies/3, running_plugins/0]).
 -export([ensure/1]).
@@ -126,7 +127,9 @@ setup() ->
 -spec active() -> [plugin_name()].
 
 active() ->
+
     InstalledPlugins = plugin_names(list(plugins_dir())),
+    %% ?LOG_plugins(#{'InstalledPlugins' =>InstalledPlugins, 'plugins_dir' => plugins_dir(), 'plugins_dir_list' => list(plugins_dir())},"已安装的插件"),
     [App || {App, _, _} <- rabbit_misc:which_applications(),
             lists:member(App, InstalledPlugins)].
 
@@ -135,15 +138,24 @@ active() ->
 -spec list(string()) -> [#plugin{}].
 
 list(PluginsPath) ->
-    list(PluginsPath, false).
+    R = list(PluginsPath, false),
+%%    ?LOG_plugins(#{'PluginsPath' => PluginsPath, 'R' => R}, "插件所在路径及返回"),
+    R.
 
 -spec list(string(), boolean()) -> [#plugin{}].
 
 list(PluginsPath, IncludeRequiredDeps) ->
     {AllPlugins, LoadingProblems} = discover_plugins(split_path(PluginsPath)),
+%%    ?LOG_plugins(#{'AllPlugins' => AllPlugins, 'LoadingProblems' => LoadingProblems}, "插件所在路径及返回"),
+
+
     {UniquePlugins, DuplicateProblems} = remove_duplicate_plugins(AllPlugins),
-    Plugins1 = maybe_keep_required_deps(IncludeRequiredDeps, UniquePlugins),
-    Plugins2 = remove_plugins(Plugins1),
+%%  ?LOG_plugins(#{'UniquePlugins' => UniquePlugins, 'DuplicateProblems' => DuplicateProblems}, "插件所在路径及返回"),
+
+    Plugins1 = maybe_keep_required_deps(IncludeRequiredDeps, UniquePlugins), %% 第一次过滤,所有不在 rabbit 依赖启动里的　app　剩下来,
+    Plugins2 = remove_plugins(Plugins1),%% 第二次过滤分两人步,　第一步:所有启动依赖ｒａｂｂｉｔ的留下,所有在第一步留下的依赖启动的里留下,
+%%  ?LOG_plugins(#{'Plugins1' => Plugins1, 'Plugins2' => Plugins2}, "插件所在路径及返回"),
+
     maybe_report_plugin_loading_problems(LoadingProblems ++ DuplicateProblems),
     ensure_dependencies(Plugins2).
 
@@ -482,12 +494,15 @@ plugin_info({ez, EZ}) ->
         {error, Reason}            -> {error, EZ, Reason}
     end;
 plugin_info({app, App}) ->
+%%    ?LOG_plugins(#{'App'=>App},"发现插件相关"),
     case rabbit_file:read_term_file(App) of
         {ok, [{application, Name, Props}]} ->
+%%            ?LOG_plugins(#{'App'=>App,'Name'=>Name,'Props'=>Props},"发现插件相关"),
             mkplugin(Name, Props, dir,
                      filename:absname(
                        filename:dirname(filename:dirname(App))));
         {error, Reason} ->
+%%          ?LOG_plugins(#{'App'=>App,'Reason'=>Reason},"发现插件相关error"),
             {error, App, {invalid_app, Reason}}
     end.
 
@@ -548,7 +563,9 @@ split_path(PathString) ->
                      {unix, _} -> ":";
                      {win32, _} -> ";"
                  end,
-    lists:usort(string:tokens(PathString, Delimiters)).
+    R = lists:usort(string:tokens(PathString, Delimiters)),
+%%    ?LOG_plugins(#{'PathString' => PathString, 'R' =>R}, "切割路径"),
+    R.
 
 %% Search for files using glob in a given dir. Returns full filenames of those files.
 full_path_wildcard(Glob, Dir) ->
@@ -581,9 +598,11 @@ compare_by_name_and_version(#plugin{name = NameA},
 discover_plugins(PluginsDirs) ->
     EZs = list_ezs(PluginsDirs),
     FreeApps = list_free_apps(PluginsDirs),
+%%    ?LOG_plugins(#{'EZs'=>EZs,'FreeApps'=>FreeApps},"发现插件相关"),
     read_plugins_info(EZs ++ FreeApps, {[], []}).
 
 read_plugins_info([], Acc) ->
+%%  ?LOG_plugins(#{'Acc'=>Acc},"发现插件相关"),
     Acc;
 read_plugins_info([Path|Paths], {Plugins, Problems}) ->
     case plugin_info(Path) of
@@ -614,6 +633,7 @@ maybe_keep_required_deps(true, Plugins) ->
     Plugins;
 maybe_keep_required_deps(false, Plugins) ->
     RabbitDeps = list_all_deps([rabbit]),
+%%  ?LOG_plugins(#{'Plugins' => Plugins, 'RabbitDeps' => RabbitDeps}, "第一次过滤,如果app在rabbit启动依赖里就过滤掉,意思就是被rabbit启动所依赖的不能作为plugin"),
     lists:filter(fun
                      (#plugin{name = Name}) ->
                          not lists:member(Name, RabbitDeps);
@@ -642,6 +662,7 @@ list_all_deps([], Deps) ->
     Deps.
 
 remove_plugins(Plugins) ->
+%%  ?LOG_plugins(#{'Plugins' => Plugins}, "将第一次过滤过的结果作为第二次过滤传入参数"),
     %% We want to filter out all Erlang applications in the plugins
     %% directories which are not actual RabbitMQ plugin.
     %%
@@ -654,12 +675,18 @@ remove_plugins(Plugins) ->
     ActualPlugins = [Plugin
                      || #plugin{dependencies = Deps} = Plugin <- Plugins,
                         lists:member(rabbit, Deps)],
+%%  ?LOG_plugins(#{'ActualPlugins' => ActualPlugins}, "依赖里必须有 rabbit的留下"),
+
     %% As said above, we want to keep all non-plugins which are
     %% dependencies of plugins.
     PluginDeps = lists:usort(
                    lists:flatten(
                      [resolve_deps(Plugins, Plugin)
                       || Plugin <- ActualPlugins])),
+
+%%  ?LOG_plugins(#{'PluginDeps' => PluginDeps}, "依赖排序"),
+
+    %%　要么ａｐｐ在依赖ｒａｂｂｉｔ启动的集合里,要么在这些被依赖的集合的依赖里,
     lists:filter(
       fun(#plugin{name = Name} = Plugin) ->
               IsOTPApp = is_plugin_provided_by_otp(Plugin),
@@ -680,6 +707,8 @@ remove_plugins(Plugins) ->
                   true ->
                       ok
               end,
+%%              ?LOG_plugins(#{'IsOTPApp' => IsOTPApp, 'IsAPlugin' => IsAPlugin, 'Name' => Name}, "过滤"),
+
               not (IsOTPApp orelse not IsAPlugin)
       end, Plugins).
 

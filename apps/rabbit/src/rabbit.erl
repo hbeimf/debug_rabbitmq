@@ -10,6 +10,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/logger.hrl").
 -include_lib("rabbit_common/include/logging.hrl").
+% -include_lib("glib/include/log.hrl").
 
 -ignore_xref({rabbit_direct, force_event_refresh, 1}).
 -ignore_xref({rabbit_networking, force_connection_event_refresh, 1}).
@@ -920,6 +921,8 @@ start(normal, []) ->
         %% dependencies. The order is important: dependencies appear
         %% before plugin which depend on them.
         Plugins = rabbit_plugins:setup(),
+        %% ?LOG_plugins(Plugins, "打印所有的插件"),
+
         ?LOG_DEBUG(
           "Loading the following plugins: ~p", [Plugins]),
         %% We can load all plugins and refresh their feature flags at
@@ -1009,6 +1012,7 @@ do_run_postlaunch_phase(Plugins) ->
         %% NOTE: PLEASE DO NOT ADD CRITICAL NODE STARTUP CODE AFTER THIS.
         ActivePlugins = rabbit_plugins:active(),
         StrictlyPlugins = rabbit_plugins:strictly_plugins(ActivePlugins),
+        %% ?LOG_plugins(#{'ActivePlugins' => ActivePlugins, 'StrictlyPlugins' => StrictlyPlugins}, "打印被启动的插件"),
         ok = log_broker_started(StrictlyPlugins),
 
         ?LOG_DEBUG("Marking ~s as running", [product_name()]),
@@ -1156,6 +1160,7 @@ force_event_refresh(Ref) ->
 %% misc
 
 log_broker_started(Plugins) ->
+    %% ?LOG_plugins(Plugins, "打印所有的插件"),
     PluginList = iolist_to_binary([rabbit_misc:format(" * ~s~n", [P])
                                    || P <- Plugins]),
     Message = string:strip(rabbit_misc:format(
