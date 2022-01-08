@@ -31,6 +31,12 @@ run: qq
 # apps/rabbitmq_management_agent/
 # apps/rabbitmq_web_dispatch/
 
+# 4369 – erlang发现口
+# 5672 –client端通信口
+# 15672 – 管理界面ui端口
+# 25672 – server间内部通信口
+# 1883 - mqtt端口
+# 15675 - mqtt websocket端口
 
 init:
 	sudo mkdir -p /var/lib/rabbitmq/

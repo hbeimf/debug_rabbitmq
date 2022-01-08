@@ -12,6 +12,7 @@
     , demo
     , rabbitmq_mqtt
     , rabbitmq_management
+    , rabbitmq_web_mqtt
    ]},
   {env,[]},
   {modules, []},
