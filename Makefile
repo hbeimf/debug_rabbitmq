@@ -15,6 +15,9 @@ VERSION := 0.1.0
 run: qq
 	./rebar3 shell --name rabbit@maomao-VirtualBox --setcookie debug_rabbitmq_cookie
 
+rr: qq
+	rebar3 shell --name rabbit@maomao-VirtualBox --setcookie debug_rabbitmq_cookie
+
 # 将web管理界面添加进来,
 # maomao@maomao-VirtualBox:~/projects/debug_rabbitmq/apps$ cp ../../rabbitmq-server/deps/rabbitmq_management . -R
 # maomao@maomao-VirtualBox:~/projects/debug_rabbitmq/apps$ cp ../../rabbitmq-server/deps/rabbitmq_management_agent . -R

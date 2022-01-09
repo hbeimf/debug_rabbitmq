@@ -14,6 +14,7 @@
 
 -include_lib("rabbit_common/include/rabbit.hrl").
 -include("rabbit_mgmt.hrl").
+-include_lib("glib/include/log_web.hrl").
 
 start_child() ->
     supervisor:start_child(?MODULE, sup()).
@@ -47,7 +48,19 @@ init([]) ->
         period    => 1
     },
     Specs = [sup()],
+    % ?LOG(Specs, "启动"),
     {ok, {Flags, Specs}}.
+
+    % "2022-01-8 14:27:59.827"========================================
+    % 启动
+    % Ｍod: rabbit_mgmt_sup_sup; Line: 51 ;
+    % [#{id => rabbit_mgmt_sup,
+    % modules => [rabbit_mgmt_sup],
+    % restart => temporary,shutdown => infinity,
+    % start => {rabbit_mgmt_sup,start_link,[]},
+    % type => supervisor}]
+
+
 
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).

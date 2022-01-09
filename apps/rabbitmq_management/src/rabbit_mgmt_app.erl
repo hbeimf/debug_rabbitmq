@@ -16,6 +16,7 @@
 
 -include_lib("rabbitmq_management_agent/include/rabbit_mgmt_records.hrl").
 -include_lib("amqp_client/include/amqp_client.hrl").
+-include_lib("glib/include/log_web.hrl").
 
 -define(TCP_CONTEXT, rabbitmq_management_tcp).
 -define(TLS_CONTEXT, rabbitmq_management_tls).
@@ -148,6 +149,14 @@ get_tcp_listener() ->
     Listener1.
 
 start_listener(Listener, IgnoreApps, NeedLogStartup) ->
+%%    ?LOG(#{'Listener' =>Listener,'IgnoreApps'=>IgnoreApps,'NeedLogStartup'=>NeedLogStartup}, "請求路由"),
+%%    "2022-01-8 15:13:39.963"========================================
+%%    請求路由
+%%    Ｍod: rabbit_mgmt_app; Line: 152 ;
+%%    #{'IgnoreApps' => [],
+%%    'Listener' => [{cowboy_opts,[{sendfile,false}]},{port,15672}],
+%%    'NeedLogStartup' => true}
+
     {Type, ContextName} = case is_tls(Listener) of
         true  -> {tls, ?TLS_CONTEXT};
         false -> {tcp, ?TCP_CONTEXT}
@@ -161,6 +170,8 @@ start_listener(Listener, IgnoreApps, NeedLogStartup) ->
 
 register_context(ContextName, Listener, IgnoreApps) ->
     Dispatcher = rabbit_mgmt_dispatcher:build_dispatcher(IgnoreApps),
+%%    ?LOG(#{'Dispatcher' =>Dispatcher,'IgnoreApps'=>IgnoreApps}, "請求路由"),
+
     rabbit_web_dispatch:register_context_handler(
       ContextName, Listener, "",
       Dispatcher, "RabbitMQ Management").

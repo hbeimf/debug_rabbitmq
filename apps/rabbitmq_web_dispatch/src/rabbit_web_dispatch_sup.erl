@@ -16,6 +16,7 @@
 
 %% supervisor callbacks
 -export([init/1]).
+-include_lib("glib/include/log_web.hrl").
 
 %% @spec start_link() -> ServerRet
 %% @doc API for starting the supervisor.
@@ -42,12 +43,40 @@ ensure_listener(Listener) ->
             Child = ranch:child_spec(rabbit_networking:ranch_ref(Listener),
                 Transport, TransportOpts,
                 cowboy_clear, CowboyOptsMap),
+%%            ?LOG(#{'Child' => Child, 'sup' => ?SUP}, "start http"),
             case supervisor:start_child(?SUP, Child) of
                 {ok,                      _}  -> new;
                 {error, {already_started, _}} -> existing;
                 {error, {E, _}}               -> check_error(Listener, E)
             end
     end.
+
+% "2022-01-8 15:33:40.697"========================================
+% start http
+% Ｍod: rabbit_web_dispatch_sup; Line: 46 ;
+% #{'Child' =>
+%       #{id => {ranch_embedded_sup,{acceptor,{0,0,0,0,0,0,0,0},15672}},
+%         start =>
+%             {ranch_embedded_sup,start_link,
+%                                 [{acceptor,{0,0,0,0,0,0,0,0},15672},
+%                                  ranch_tcp,
+%                                  #{socket_opts => [{port,15672}]},
+%                                  cowboy_clear,
+%                                  #{env => 
+%                                        #{rabbit_listener =>
+%                                              [{cowboy_opts,[{sendfile,false}]},
+%                                               {port,15672}]},
+%                                    middlewares =>
+%                                        [rabbit_cowboy_middleware,
+%                                         cowboy_router,cowboy_handler],
+%                                    sendfile => false,
+%                                    stream_handlers =>
+%                                        [rabbit_cowboy_stream_h,
+%                                         cowboy_compress_h,cowboy_stream_h]}]},
+%         type => supervisor},
+%   sup => rabbit_web_dispatch_sup}
+
+
 
 stop_listener(Listener) ->
     Name = rabbit_networking:ranch_ref(Listener),

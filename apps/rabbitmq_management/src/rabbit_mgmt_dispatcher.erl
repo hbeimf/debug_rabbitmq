@@ -12,8 +12,11 @@
 -behaviour(rabbit_mgmt_extension).
 -export([dispatcher/0, web_ui/0]).
 
+-include_lib("glib/include/log_web.hrl").
+
 build_dispatcher(Ignore) ->
     Routes = build_routes(Ignore),
+%%    ?LOG(Routes, "請求路由"),
     cowboy_router:compile(Routes).
 
 build_routes(Ignore) ->

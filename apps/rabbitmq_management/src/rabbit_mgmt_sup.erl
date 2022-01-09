@@ -16,6 +16,7 @@
 -include_lib("rabbitmq_management_agent/include/rabbit_mgmt_metrics.hrl").
 -include_lib("rabbit_common/include/rabbit.hrl").
 -include_lib("rabbit_common/include/rabbit_core_metrics.hrl").
+-include_lib("glib/include/log_web.hrl").
 
 init([]) ->
     DB = {rabbit_mgmt_db, {rabbit_mgmt_db, start_link, []},
@@ -24,6 +25,7 @@ init([]) ->
           permanent, ?SUPERVISOR_WAIT, supervisor, [management_worker_pool_sup]},
     DBC = {rabbit_mgmt_db_cache_sup, {rabbit_mgmt_db_cache_sup, start_link, []},
           permanent, ?SUPERVISOR_WAIT, supervisor, [rabbit_mgmt_db_cache_sup]},
+    % ?LOG([DB, WP, DBC], "子近臣"),
     {ok, {{one_for_one, 100, 1}, [DB, WP, DBC]}}.
 
 start_link() ->
