@@ -14,7 +14,10 @@
          emit_connection_info_all/4,
          close_all_client_connections/1]).
 
+-include_lib("glib/include/log_mqtt.hrl").
+
 start(normal, []) ->
+    % ?LOG(here, "LOG desc"),
     {ok, Listeners} = application:get_env(tcp_listeners),
     {ok, SslListeners} = application:get_env(ssl_listeners),
     ok = mqtt_node:start(),

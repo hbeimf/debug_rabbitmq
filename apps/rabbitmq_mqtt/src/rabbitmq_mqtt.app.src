@@ -4,7 +4,7 @@
 	{id, "v3.8.10-1058-g6835a5b"},
 	{modules, ['Elixir.RabbitMQ.CLI.Ctl.Commands.DecommissionMqttNodeCommand','Elixir.RabbitMQ.CLI.Ctl.Commands.ListMqttConnectionsCommand','mqtt_machine','mqtt_machine_v0','mqtt_node','rabbit_mqtt','rabbit_mqtt_collector','rabbit_mqtt_connection_info','rabbit_mqtt_connection_sup','rabbit_mqtt_frame','rabbit_mqtt_internal_event_handler','rabbit_mqtt_processor','rabbit_mqtt_reader','rabbit_mqtt_retained_msg_store','rabbit_mqtt_retained_msg_store_dets','rabbit_mqtt_retained_msg_store_ets','rabbit_mqtt_retained_msg_store_noop','rabbit_mqtt_retainer','rabbit_mqtt_retainer_sup','rabbit_mqtt_sup','rabbit_mqtt_util']},
 	{registered, [rabbitmq_mqtt_sup]},
-	{applications, [kernel,stdlib,ranch,rabbit_common,rabbit,amqp_client,ra]},
+	{applications, [kernel,stdlib,ranch,rabbit_common,rabbit,amqp_client,ra, glib]},
 	{mod, {rabbit_mqtt, []}},
 	{env, [
 	    {default_user, <<"guest">>},

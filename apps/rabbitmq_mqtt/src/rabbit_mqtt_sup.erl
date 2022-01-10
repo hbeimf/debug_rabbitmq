@@ -9,6 +9,7 @@
 -behaviour(supervisor2).
 
 -include_lib("rabbit_common/include/rabbit.hrl").
+-include_lib("glib/include/log_mqtt.hrl").
 
 -export([start_link/2, init/1, stop_listeners/0]).
 
@@ -32,6 +33,7 @@ init([{Listeners, SslListeners0}]) ->
                          danger -> []
                      end}
           end,
+    Reply =
     {ok, {{one_for_all, 10, 10},
           [{rabbit_mqtt_retainer_sup,
             {rabbit_mqtt_retainer_sup, start_link, [{local, rabbit_mqtt_retainer_sup}]},
@@ -40,7 +42,32 @@ init([{Listeners, SslListeners0}]) ->
                           [SocketOpts, NumTcpAcceptors, ConcurrentConnsSups], Listeners) ++
            listener_specs(fun ssl_listener_spec/1,
                           [SocketOpts, SslOpts, NumSslAcceptors, ConcurrentConnsSups],
-                          SslListeners)]}}.
+                          SslListeners)]}},
+    % ?LOG(Reply, "start init"),
+    Reply.
+
+% "2022-01-10 15:28:59.927"========================================
+% start init
+% Ｍod: rabbit_mqtt_sup; Line: 46 ;
+% {ok,{{one_for_all,10,10},
+%      [{rabbit_mqtt_retainer_sup,
+%           {rabbit_mqtt_retainer_sup,start_link,
+%               [{local,rabbit_mqtt_retainer_sup}]},
+%           transient,infinity,supervisor,
+%           [rabbit_mqtt_retainer_sup]},
+%       {'rabbit_mqtt_listener_sup_:::1883',
+%           {tcp_listener_sup,start_link,
+%               [{0,0,0,0,0,0,0,0},
+%                1883,ranch_tcp,
+%                [inet6,{backlog,128},{nodelay,true}],
+%                rabbit_mqtt_connection_sup,[],
+%                {rabbit_networking,tcp_listener_started,
+%                    [mqtt,[{backlog,128},{nodelay,true}]]},
+%                {rabbit_networking,tcp_listener_stopped,
+%                    [mqtt,[{backlog,128},{nodelay,true}]]},
+%                10,1,"MQTT TCP listener"]},
+%           transient,infinity,supervisor,
+%           [tcp_listener_sup]}]}}
 
 stop_listeners() ->
     rabbit_networking:stop_ranch_listener_of_protocol(?TCP_PROTOCOL),

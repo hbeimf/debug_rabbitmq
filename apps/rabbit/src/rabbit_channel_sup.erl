@@ -44,9 +44,10 @@
 
 -spec start_link(start_link_args()) -> {'ok', pid(), {pid(), any()}}.
 
+%% ReaderPid 是 rabbit_reader
 start_link({tcp, Sock, Channel, FrameMax, ReaderPid, ConnName, Protocol, User,
             VHost, Capabilities, Collector}) ->
-    ?LOG_CREATE_CHANNEL(#{'Args' => {tcp, Sock, Channel, FrameMax, ReaderPid, ConnName, Protocol, User, VHost, Capabilities, Collector}}),
+    %% ?LOG_CREATE_CHANNEL(#{'Args' => {tcp, Sock, Channel, FrameMax, ReaderPid, ConnName, Protocol, User, VHost, Capabilities, Collector}}),
 
     %% 下面一次启动了两人个 actor
     %% rabbit_writer:start_link &&  rabbit_limiter:start_link
@@ -57,7 +58,7 @@ start_link({tcp, Sock, Channel, FrameMax, ReaderPid, ConnName, Protocol, User,
     %% 取出上面刚刚创建的两人个子进程的 ｐｉｄ
     [LimiterPid] = supervisor2:find_child(SupPid, limiter),
     [WriterPid] = supervisor2:find_child(SupPid, writer),
-    ?LOG_CREATE_CHANNEL(#{'LimiterPid' => LimiterPid, 'mfa' => glib_tool:pid_info(LimiterPid), 'WriterPid' => WriterPid, 'mfa1' => glib_tool:pid_info(WriterPid)}),
+    %% ?LOG_CREATE_CHANNEL(#{'LimiterPid' => LimiterPid, 'mfa' => glib_tool:pid_info(LimiterPid), 'WriterPid' => WriterPid, 'mfa1' => glib_tool:pid_info(WriterPid)}),
 
     {ok, ChannelPid} =
         supervisor2:start_child(

@@ -1684,6 +1684,8 @@ handle_cast({run_backing_queue, Mod, Fun},
 
 %%pub的消息在这里被投递到了队列
 %%　Delivery　:　消息相关的变量
+%% rabbit_channel 根戶exchane, routing_key 找出綁定的 queue 然后将消息到定⾥了
+
 handle_cast({deliver,
              Delivery = #delivery{sender = Sender,
                                   flow   = Flow},
@@ -1705,7 +1707,7 @@ handle_cast({deliver,
                    noflow -> Senders
                end,
     State1 = State#q{senders = Senders1},
-    ?LOG_pub1(here, "中文说明测试"),
+    %% ?LOG_pub1(here, "中文说明测试"),
     noreply(maybe_deliver_or_enqueue(Delivery, SlaveWhenPublished, State1));
 %% [0] The second ack is since the channel thought we were a mirror at
 %% the time it published this message, so it used two credits (see

@@ -7,6 +7,7 @@
 
 -module(rabbit_mqtt_retainer_sup).
 -behaviour(supervisor2).
+-include_lib("glib/include/log_mqtt.hrl").
 
 -export([start_link/1, init/1, start_child/2,start_child/1, child_for_vhost/1,
          delete_child/1]).

@@ -149,6 +149,7 @@ start(Sock, Channel, FrameMax, Protocol, ReaderPid, Identity) ->
     start(Sock, Channel, FrameMax, Protocol, ReaderPid, Identity, false).
 
 %% 这个actor启动后　pid　会放在　rabbit_channel 的状态里,当要发送消息时,　会由pid发送到这个actor来处理,
+%% ReaderPid : rabbit_reader
 start_link(Sock, Channel, FrameMax, Protocol, ReaderPid, Identity) ->
     start_link(Sock, Channel, FrameMax, Protocol, ReaderPid, Identity, false).
 

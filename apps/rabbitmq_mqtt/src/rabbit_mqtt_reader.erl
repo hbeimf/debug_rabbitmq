@@ -25,11 +25,14 @@
 
 -include_lib("amqp_client/include/amqp_client.hrl").
 -include("rabbit_mqtt.hrl").
+-include_lib("glib/include/log_mqtt.hrl").
 
 -define(SIMPLE_METRICS, [pid, recv_oct, send_oct, reductions]).
 -define(OTHER_METRICS, [recv_cnt, send_cnt, send_pend, garbage_collection, state]).
 
 %%----------------------------------------------------------------------------
+
+% KeepaliveSup: rabbit_mqtt_connection_sup
 
 start_link(KeepaliveSup, Ref) ->
     Pid = proc_lib:spawn_link(?MODULE, init,
@@ -54,6 +57,7 @@ close_connection(Pid, Reason) ->
 
 init([KeepaliveSup, Ref]) ->
     process_flag(trap_exit, true),
+    %% 这里跟 rabbit_reader 一样,通过握手拿到 Sock 句柄
     {ok, Sock} = rabbit_networking:handshake(Ref,
         application:get_env(rabbitmq_mqtt, proxy_protocol, false)),
     RealSocket = rabbit_net:unwrap_socket(Sock),

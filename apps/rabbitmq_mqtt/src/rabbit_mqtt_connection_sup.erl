@@ -11,6 +11,7 @@
 -behaviour(ranch_protocol).
 
 -include_lib("rabbit_common/include/rabbit.hrl").
+-include_lib("glib/include/log_mqtt.hrl").
 
 -export([start_link/3, start_keepalive_link/0]).
 
@@ -30,6 +31,7 @@ start_link(Ref, _Transport, []) ->
                         {rabbit_mqtt_reader,
                          {rabbit_mqtt_reader, start_link, [KeepaliveSup, Ref]},
                          intrinsic, ?WORKER_WAIT, worker, [rabbit_mqtt_reader]}),
+    % ?LOG(#{'ReaderPid' }),
     {ok, SupPid, ReaderPid}.
 
 start_keepalive_link() ->
