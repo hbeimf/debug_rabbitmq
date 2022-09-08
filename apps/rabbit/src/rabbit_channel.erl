@@ -1458,6 +1458,7 @@ handle_method(#'basic.nack'{delivery_tag = DeliveryTag,
 handle_method(#'basic.ack'{delivery_tag = DeliveryTag,
                            multiple     = Multiple},
               _, State = #ch{unacked_message_q = UAMQ, tx = Tx}) ->
+%%    ?LOG_basic_ack(#{'DeliveryTag' => DeliveryTag, 'Multiple' => Multiple, 'UAMQ' =>UAMQ, 'Tx'=> Tx}, "确认收到消息"),
     {Acked, Remaining} = collect_acks(UAMQ, DeliveryTag, Multiple),
     State1 = State#ch{unacked_message_q = Remaining},
     {noreply, case Tx of

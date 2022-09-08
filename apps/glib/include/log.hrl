@@ -66,8 +66,12 @@
 -define(LOG_sub2(X), true).
 
 
--define(LOG_plugins(X, Desc), io:format("~p========================================~n~ts~nＭod: ~p; Line: ~p ;~n~p~n~n", [glib:date_str(), Desc, ?MODULE,?LINE,X])).
+% -define(LOG_plugins(X, Desc), io:format("~p========================================~n~ts~nＭod: ~p; Line: ~p ;~n~p~n~n", [glib:date_str(), Desc, ?MODULE,?LINE,X])).
+-define(LOG_plugins(X, D), true).
+
+-define(LOG_basic_ack(X, Desc), io:format("~p========================================~n~ts~nＭod: ~p; Line: ~p ;~n~p~n~n", [glib:date_str(), Desc, ?MODULE,?LINE,X])).
 %%-define(LOG_plugins(X, D), true).
+
 
 %% =====================================================
 %% =====================================================
