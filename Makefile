@@ -11,9 +11,11 @@ NODENAME := debug_rabbitmq
 PREVIOUS_VERSION = 0.1.0
 VERSION := 0.1.0
 
+REBAR3 :=  HEX_CDN=https://hexpm.upyun.com ./rebar3 
+
 # 名字是有讲究的哈,　不能乱起,　rabbit@maomao-VirtualBox
 run: qq
-	./rebar3 shell --name rabbit@maomao-VirtualBox --setcookie debug_rabbitmq_cookie
+	$(REBAR3) shell --name rabbit@maomao-VirtualBox --setcookie debug_rabbitmq_cookie
 
 rr: qq
 	rebar3 shell --name rabbit@maomao-VirtualBox --setcookie debug_rabbitmq_cookie

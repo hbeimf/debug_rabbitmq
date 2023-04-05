@@ -535,7 +535,7 @@ init(Q, new, AsyncCallback, MsgOnDiskFun, MsgIdxOnDiskFun, MsgAndIdxOnDiskFun) w
     IsDurable = amqqueue:is_durable(Q),
     IndexState = rabbit_queue_index:init(QueueName,
                                          MsgIdxOnDiskFun, MsgAndIdxOnDiskFun),
-    ?LOG_sub2(#{'QueueName' => QueueName, 'IsDurable' => IsDurable, 'IndexState' => IndexState}),
+    % ?LOG_sub2(#{'QueueName' => QueueName, 'IsDurable' => IsDurable, 'IndexState' => IndexState}),
 
     VHost = QueueName#resource.virtual_host,
     % init/8 定义在: 1403行左右;
