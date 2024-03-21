@@ -316,6 +316,8 @@ boot() ->
     start_it(transient).
 
 run_prelaunch_second_phase() ->
+    application:stop(mnesia),
+    
     % ?LOG2(here),
     %% Finish the prelaunch phase started by the `rabbitmq_prelaunch`
     %% application.

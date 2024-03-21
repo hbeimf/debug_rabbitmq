@@ -74,9 +74,10 @@ rel_cluster1: release_c1_node1 release_c1_node2
 
 release_c1_node1: 
 	./rebar3 compile
+	./rebar3 release
+	./rebar3 tar
+	cp ./_build/default/rel/$(NODENAME)/$(NODENAME)-$(VERSION).tar.gz ./bin/
 
-# ./rebar3 release
-# ./rebar3 tar
 # mkdir ./$(PROJECT)_v$(VERSION)_cluster1_node1
 # tar zxvf ./_build/default/rel/$(NODENAME)/$(NODENAME)-$(VERSION).tar.gz -C ./$(PROJECT)_v$(VERSION)_cluster1_node1/
 # cp ./config.ini ./$(PROJECT)_v$(VERSION)_cluster1_node1/config.ini

@@ -1,6 +1,13 @@
--sname debug_rabbitmq
+-name rabbit@maomao-VirtualBox 
 
 -setcookie debug_rabbitmq_cookie
 
 +K true
 +A30
+
++swt low
++sbwt none
++P 1000000
+-smp enable
++S 8
++sub true
